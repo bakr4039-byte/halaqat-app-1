@@ -132,88 +132,130 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
         icon: const Icon(Icons.add),
         label: const Text('مجمع جديد'),
       ),
-      body: RefreshIndicator(
-        onRefresh: () async => setState(_load),
-        child: FutureBuilder<Map<String, dynamic>>(
-          future: _overviewFuture,
-          builder: (context, snapshot) {
-            // ignore: avoid_print
-            print('OVERVIEW DEBUG: state=${snapshot.connectionState} '
-                'hasError=${snapshot.hasError} error=${snapshot.error} '
-                'hasData=${snapshot.hasData} data=${snapshot.data}');
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircularProgressIndicator(),
-                      SizedBox(height: 12),
-                      Text('جارِ التحميل (تشخيص مؤقت)...'),
-                    ],
-                  ),
-                ),
-              );
-            }
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('خطأ (تشخيص مؤقت): ${snapshot.error}\n\n${snapshot.stackTrace}'),
-                ),
-              );
-            }
-            if (!snapshot.hasData || snapshot.data == null) {
-              return const Center(child: Text('لا توجد بيانات (تشخيص مؤقت): hasData=false'));
-            }
-            final data = snapshot.data!;
-            List<Map<String, dynamic>> circles;
-            try {
-              circles = (data['circles'] as List).cast<Map<String, dynamic>>();
-            } catch (e, st) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text('خطأ تحويل البيانات (تشخيص مؤقت): $e\n\nالبيانات الخام: $data\n\n$st'),
-                ),
-              );
-            }
-
-            return ListView(
-              padding: const EdgeInsets.all(16),
-              children: [
-                Text('تشخيص مؤقت: عدد المجمعات المستلمة = ${circles.length}',
-                    style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    _StatCard(label: 'المجمعات', value: '${data['circlesCount']}'),
-                    const SizedBox(width: 12),
-                    _StatCard(label: 'المعلمون', value: '${data['teachersCount']}'),
-                    const SizedBox(width: 12),
-                    _StatCard(label: 'الطلاب', value: '${data['studentsCount']}'),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                ...circles.map((c) => Card(
-                      child: ListTile(
-                        title: Text(c['circleName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text(
-                          'معلمون: ${c['teachersCount']} · طلاب: ${c['studentsCount']} · '
-                          'آخر نشاط: ${c['lastActivity'] ?? '-'} · '
-                          'نسبة الحضور: ${c['attendanceRate'] != null ? '${c['attendanceRate']}%' : '-'}',
+      body: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            color: Colors.yellow,
+            padding: const EdgeInsets.all(8),
+            child: const Text(
+              'تشخيص شامل: جسم الشاشة بدأ يُرسَم (لو دي مش ظاهرة فالمشكلة قبل الـ FutureBuilder)',
+              style: TextStyle(fontSize: 11, color: Colors.black),
+            ),
+          ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async => setState(_load),
+              child: FutureBuilder<Map<String, dynamic>>(
+                future: _overviewFuture,
+                builder: (context, snapshot) {
+                  try {
+                    // ignore: avoid_print
+                    print('OVERVIEW DEBUG: state=${snapshot.connectionState} '
+                        'hasError=${snapshot.hasError} hasData=${snapshot.hasData}');
+                  } catch (_) {
+                    // تجاهل أي خطأ في الطباعة نفسها
+                  }
+                  try {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(24),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              CircularProgressIndicator(),
+                              SizedBox(height: 12),
+                              Text('جارِ التحميل (تشخيص مؤقت)...'),
+                            ],
+                          ),
                         ),
-                        leading: const CircleAvatar(
-                          backgroundColor: AppColors.primary,
-                          child: Icon(Icons.groups, color: Colors.white),
+                      );
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: SingleChildScrollView(
+                            child: SelectableText(
+                              'خطأ (تشخيص مؤقت): ${snapshot.error}\n\n${snapshot.stackTrace}',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    if (!snapshot.hasData || snapshot.data == null) {
+                      return const Center(child: Text('لا توجد بيانات (تشخيص مؤقت): hasData=false'));
+                    }
+                    final data = snapshot.data!;
+                    List<Map<String, dynamic>> circles;
+                    try {
+                      circles = (data['circles'] as List).cast<Map<String, dynamic>>();
+                    } catch (e, st) {
+                      return Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: SingleChildScrollView(
+                            child: SelectableText(
+                              'خطأ تحويل البيانات (تشخيص مؤقت): $e\n\nالبيانات الخام: $data\n\n$st',
+                              style: const TextStyle(color: Colors.red),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+
+                    return ListView(
+                      padding: const EdgeInsets.all(16),
+                      children: [
+                        Text('تشخيص مؤقت: عدد المجمعات المستلمة = ${circles.length}',
+                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            _StatCard(label: 'المجمعات', value: '${data['circlesCount']}'),
+                            const SizedBox(width: 12),
+                            _StatCard(label: 'المعلمون', value: '${data['teachersCount']}'),
+                            const SizedBox(width: 12),
+                            _StatCard(label: 'الطلاب', value: '${data['studentsCount']}'),
+                          ],
+                        ),
+                        const SizedBox(height: 20),
+                        ...circles.map((c) => Card(
+                              child: ListTile(
+                                title: Text(c['circleName'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                subtitle: Text(
+                                  'معلمون: ${c['teachersCount']} · طلاب: ${c['studentsCount']} · '
+                                  'آخر نشاط: ${c['lastActivity'] ?? '-'} · '
+                                  'نسبة الحضور: ${c['attendanceRate'] != null ? '${c['attendanceRate']}%' : '-'}',
+                                ),
+                                leading: const CircleAvatar(
+                                  backgroundColor: AppColors.primary,
+                                  child: Icon(Icons.groups, color: Colors.white),
+                                ),
+                              ),
+                            )),
+                      ],
+                    );
+                  } catch (e, st) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: SingleChildScrollView(
+                          child: SelectableText(
+                            'خطأ غير متوقع أثناء رسم الشاشة (تشخيص شامل):\n$e\n\n$st',
+                            style: const TextStyle(color: Colors.red),
+                          ),
                         ),
                       ),
-                    )),
-              ],
-            );
-          },
-        ),
+                    );
+                  }
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
