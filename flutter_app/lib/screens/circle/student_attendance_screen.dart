@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../utils/json_utils.dart';
 
 /// يقابل تحضير الطلاب (getStudents + saveStudentAttendanceDay) في Code.gs
 class StudentAttendanceScreen extends StatefulWidget {
@@ -29,7 +30,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
 
   void _load() {
     _studentsFuture = context.read<ApiService>().getStudents(widget.circleId).then((res) {
-      final list = (res['students'] as List).cast<Map<String, dynamic>>();
+      final list = asMapList(res['students']);
       for (final s in list) {
         _statusByStudentId[s['id']] = 'present';
       }
