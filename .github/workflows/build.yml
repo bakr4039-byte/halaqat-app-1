@@ -1,0 +1,64 @@
+name: Build Halaqat App
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "flutter_app/**"
+  workflow_dispatch:
+
+jobs:
+  build-android:
+    name: Android APK/AAB
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: "stable"
+
+      # لازم android/ موجود مسبقًا في المستودع (نتج عن تشغيل setup.sh محليًا
+      # مرة واحدة وعمل commit له) — الـ CI هنا بيبني بس، مش بيولّد المشروع.
+      - run: flutter pub get
+      - run: flutter build apk --release
+      - run: flutter build appbundle --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-release
+          path: |
+            flutter_app/build/app/outputs/flutter-apk/app-release.apk
+            flutter_app/build/app/outputs/bundle/release/app-release.aab
+
+  build-ios:
+    name: iOS (بدون توقيع — للاختبار فقط)
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: flutter_app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.24.5"
+          channel: "stable"
+
+      - run: flutter pub get
+      # بناء بدون توقيع (no-codesign) — كافي للتأكد إن الكود بيتبني صح.
+      # للتوزيع الفعلي على App Store/TestFlight لازم:
+      #  1) حساب Apple Developer فعّال
+      #  2) شهادة توقيع (Distribution Certificate) + Provisioning Profile
+      #  3) رفعهم كـ GitHub Secrets واستخدام fastlane أو
+      #     xcodebuild -exportArchive بدل flutter build ipa هنا
+      - run: flutter build ios --release --no-codesign
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-unsigned-build
+          path: flutter_app/build/ios/iphoneos/Runner.app
