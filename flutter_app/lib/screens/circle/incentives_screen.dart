@@ -1,8 +1,10 @@
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../utils/json_utils.dart';
 
 /// يقابل لوحة الشرف ونقاط التحفيز (getLeaderboard + applyIncentivePointsBulk) في Code.gs
 class IncentivesScreen extends StatefulWidget {
@@ -24,7 +26,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
 
   void _load() {
     _leaderboardFuture = context.read<ApiService>().getLeaderboard(widget.circleId).then(
-          (res) => (res['leaderboard'] as List).cast<Map<String, dynamic>>(),
+          (res) => asMapList(res['leaderboard']),
         );
   }
 
@@ -32,8 +34,8 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     final api = context.read<ApiService>();
     final itemsRes = await api.getIncentiveItems(widget.circleId);
     final studentsRes = await api.getStudents(widget.circleId);
-    final items = (itemsRes['items'] as List).cast<Map<String, dynamic>>();
-    final students = (studentsRes['students'] as List).cast<Map<String, dynamic>>();
+    final items = asMapList(itemsRes['items']);
+    final students = asMapList(studentsRes['students']);
 
     if (!mounted) return;
     if (items.isEmpty) {
