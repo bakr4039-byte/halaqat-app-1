@@ -15,6 +15,28 @@ import 'theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // تشخيص مؤقت: في وضع release العادي، أي خطأ أثناء رسم أي عنصر بيتحوّل
+  // لمربع فاضي تمامًا من غير أي رسالة — وده بالظبط اللي كان بيسبّب "الشاشة الفاضية".
+  // هنا بنجبر Flutter يعرض تفاصيل الخطأ الكاملة بدل المربع الفاضي، لحد ما نتأكد
+  // المشكلة اتحلت بالكامل.
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          child: SelectableText(
+            'خطأ فادح أثناء الرسم (تشخيص شامل):\n\n'
+            '${details.exceptionAsString()}\n\n'
+            '${details.stack}',
+            style: const TextStyle(color: Colors.red, fontSize: 12),
+          ),
+        ),
+      ),
+    );
+  };
+
   runApp(const HalaqatApp());
 }
 
