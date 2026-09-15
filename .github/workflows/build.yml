@@ -1,4 +1,4 @@
-name: Build Halaqat App
+﻿name: Build Halaqat App
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.5"
+          flutter-version: "3.44.8"
           channel: "stable"
 
       # لازم android/ موجود مسبقًا في المستودع (نتج عن تشغيل setup.sh محليًا
@@ -37,7 +37,7 @@ jobs:
 
   build-ios:
     name: iOS (بدون توقيع — للاختبار فقط)
-    runs-on: macos-14
+    runs-on: macos-15
     defaults:
       run:
         working-directory: flutter_app
@@ -46,7 +46,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.24.5"
+          flutter-version: "3.44.8"
           channel: "stable"
 
       - run: flutter pub get
