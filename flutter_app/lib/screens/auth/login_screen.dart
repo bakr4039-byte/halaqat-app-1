@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/auth_service.dart';
@@ -38,7 +38,9 @@ class _LoginScreenState extends State<LoginScreen> {
           );
       // RootRouter هيتكفّل بالتنقّل تلقائيًا بمجرد ما authStateChanges يتغيّر
     } catch (e) {
-      setState(() => _error = 'بيانات الدخول غير صحيحة. حاول مرة أخرى.');
+      // ignore: avoid_print
+      print('LOGIN DEBUG ERROR: $e');
+      setState(() => _error = 'خطأ (تشخيص مؤقت): $e');
     } finally {
       if (mounted) setState(() => _loading = false);
     }
