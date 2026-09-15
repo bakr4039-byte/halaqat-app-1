@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme.dart';
+import '../../utils/json_utils.dart';
 
 /// يقابل لوحة السوبر أدمن (superAdminGetOverview) في main.html القديم —
 /// بما فيها عمودي "آخر نشاط" و"نسبة الحضور" المضافين في آخر تحديث.
@@ -191,7 +192,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                     final data = snapshot.data!;
                     List<Map<String, dynamic>> circles;
                     try {
-                      circles = (data['circles'] as List).cast<Map<String, dynamic>>();
+                      circles = asMapList(data['circles']);
                     } catch (e, st) {
                       return Center(
                         child: Padding(
