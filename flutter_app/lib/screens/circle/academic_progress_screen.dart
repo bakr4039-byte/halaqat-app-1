@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
+import '../../utils/json_utils.dart';
 
 /// يقابل متابعة الحفظ والمراجعة (getAcademicProgressData + saveAcademicProgressValue) في Code.gs
 class AcademicProgressScreen extends StatefulWidget {
@@ -23,7 +24,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
 
   void _load() {
     _dataFuture = context.read<ApiService>().getAcademicProgressData(widget.circleId).then(
-          (res) => (res['records'] as List).cast<Map<String, dynamic>>(),
+          (res) => asMapList(res['records']),
         );
   }
 
