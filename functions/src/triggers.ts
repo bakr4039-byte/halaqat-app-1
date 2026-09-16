@@ -19,14 +19,33 @@ function todayKey(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** يقابل autoAbsentSweep في Code.gs — تسجيل غياب تلقائي للمعلمين بعد نهاية الوردية */
+/** يحوّل الوقت الحالي (UTC) إلى دقائق منذ منتصف الليل بتوقيت آسيا/الرياض (UTC+3، بدون توقيت صيفي) */
+function nowMinutesRiyadh(): number {
+  const now = new Date();
+  const riyadhMinutes = (now.getUTCHours() * 60 + now.getUTCMinutes() + 3 * 60) % (24 * 60);
+  return riyadhMinutes;
+}
+
+/**
+ * يقابل autoAbsentSweep في Code.gs — تسجيل غياب تلقائي لأي معلم لم يسجل
+ * حضوره حتى الساعة المحددة في autoAbsentCutoffTime (لو مفعّلة الخاصية
+ * autoAbsentEnabled) — تعمل من الخادم حتى لو كان المتصفح/التطبيق مغلق.
+ */
 export const autoAbsentSweep = onSchedule("every 10 minutes", async () => {
   const circlesSnap = await db.collection("circles").get();
+  const nowMinutes = nowMinutesRiyadh();
+
   for (const circleDoc of circlesSnap.docs) {
     try {
       const settings = circleDoc.data();
-      const shiftEndCheck = true; // TODO: نفس منطق حساب نهاية الوردية بتاريخ shiftDurationMins + prayerSlot من Code.gs
-      if (!shiftEndCheck) continue;
+      if (!settings.autoAbsentEnabled) continue;
+
+      const cutoff = String(settings.autoAbsentCutoffTime || "").trim();
+      const m = cutoff.match(/^(\d{1,2}):(\d{2})$/);
+      if (!m) continue;
+      const cutoffMinutes = Number(m[1]) * 60 + Number(m[2]);
+      // نطبّق المسح خلال أول 10 دقائق بعد ساعة القطع فقط، لتفادي التكرار
+      if (nowMinutes < cutoffMinutes || nowMinutes > cutoffMinutes + 10) continue;
 
       const teachersSnap = await circleDoc.ref.collection("teachers").get();
       const attCol = circleDoc.ref.collection("teacherAttendance");
