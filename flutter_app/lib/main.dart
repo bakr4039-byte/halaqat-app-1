@@ -98,10 +98,11 @@ class RootRouter extends StatelessWidget {
             }
             final role = tokenSnap.data!.claims?['role'] as String?;
             final circleId = tokenSnap.data!.claims?['circleId'] as String?;
+            final teacherId = tokenSnap.data!.claims?['teacherId'] as String?;
 
             if (role == 'superAdmin') return const SuperAdminHomeScreen();
             if ((role == 'owner' || role == 'teacher') && circleId != null) {
-              return CircleHomeScreen(circleId: circleId, role: role!);
+              return CircleHomeScreen(circleId: circleId, role: role!, teacherId: teacherId);
             }
             // دور غير معروف أو claims لسه ما وصلتش — نرجّع لشاشة الدخول
             return const LoginScreen();
