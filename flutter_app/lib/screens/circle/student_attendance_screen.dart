@@ -9,6 +9,8 @@ import '../../utils/json_utils.dart';
 /// يقابل تحضير الطلاب (getStudents + saveStudentAttendanceDay) في Code.gs
 /// — لو filterTeacherId متحدد (المعلم بيفتح شاشته)، بتتفلتر القائمة على
 /// طلابه هو بس بدل كل طلاب المجمع.
+/// الحالات الست: حاضر (أخضر) / غائب (أحمر) / متأخر (برتقالي) / مستأذن / إجازة
+/// / بدون تسجيل (الحالة الافتراضية قبل اختيار المعلم لأي حالة).
 class StudentAttendanceScreen extends StatefulWidget {
   final String circleId;
   final String? filterTeacherId;
@@ -18,9 +20,25 @@ class StudentAttendanceScreen extends StatefulWidget {
   State<StudentAttendanceScreen> createState() => _StudentAttendanceScreenState();
 }
 
+const Map<String, String> kAttendanceStatusLabels = {
+  'present': 'حاضر',
+  'absent': 'غائب',
+  'late': 'متأخر',
+  'excused': 'مستأذن',
+  'leave': 'إجازة',
+};
+
+const Map<String, Color> kAttendanceStatusColors = {
+  'present': AppColors.primary,
+  'absent': AppColors.danger,
+  'late': AppColors.accentOrange,
+  'excused': AppColors.accentBlue,
+  'leave': Colors.purple,
+};
+
 class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   late Future<List<Map<String, dynamic>>> _studentsFuture;
-  final Map<String, String> _statusByStudentId = {}; // studentId -> 'present' | 'absent'
+  final Map<String, String?> _statusByStudentId = {}; // studentId -> status | null (بدون تسجيل)
   bool _saving = false;
 
   String get _dateKey => intl.DateFormat('yyyy-MM-dd').format(DateTime.now());
@@ -38,7 +56,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
         list = list.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
       }
       for (final s in list) {
-        _statusByStudentId[s['id']] = 'present';
+        _statusByStudentId[s['id']] = null;
       }
       return list;
     });
@@ -48,11 +66,12 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     setState(() => _saving = true);
     try {
       final records = students
+          .where((s) => _statusByStudentId[s['id']] != null)
           .map((s) => {
                 'studentId': s['id'],
                 'studentName': s['name'],
                 'teacherId': s['teacherId'] ?? '',
-                'status': _statusByStudentId[s['id']] ?? 'present',
+                'status': _statusByStudentId[s['id']],
               })
           .toList();
 
@@ -100,20 +119,33 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                 itemBuilder: (context, i) {
                   final s = students[i];
                   final id = s['id'] as String;
-                  final status = _statusByStudentId[id] ?? 'present';
+                  final status = _statusByStudentId[id];
                   return Card(
-                    child: ListTile(
-                      title: Text(s['name'] ?? ''),
-                      subtitle: Text(s['stage'] ?? ''),
-                      trailing: ToggleButtons(
-                        borderRadius: BorderRadius.circular(8),
-                        isSelected: [status == 'present', status == 'absent'],
-                        onPressed: (idx) => setState(() {
-                          _statusByStudentId[id] = idx == 0 ? 'present' : 'absent';
-                        }),
-                        children: const [
-                          Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('حاضر')),
-                          Padding(padding: EdgeInsets.symmetric(horizontal: 12), child: Text('غائب')),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          if ((s['stage'] ?? '').toString().isNotEmpty)
+                            Text(s['stage'].toString(), style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          const SizedBox(height: 8),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: kAttendanceStatusLabels.entries.map((e) {
+                              final selected = status == e.key;
+                              final color = kAttendanceStatusColors[e.key]!;
+                              return ChoiceChip(
+                                label: Text(e.value),
+                                selected: selected,
+                                selectedColor: color,
+                                labelStyle: TextStyle(color: selected ? Colors.white : color, fontWeight: FontWeight.w600),
+                                backgroundColor: color.withValues(alpha: 0.1),
+                                onSelected: (_) => setState(() => _statusByStudentId[id] = selected ? null : e.key),
+                              );
+                            }).toList(),
+                          ),
                         ],
                       ),
                     ),
