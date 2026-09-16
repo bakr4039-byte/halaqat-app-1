@@ -1,10 +1,15 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
+import '../../theme.dart';
 import '../../utils/json_utils.dart';
 
-/// يقابل متابعة الحفظ والمراجعة (getAcademicProgressData + saveAcademicProgressValue) في Code.gs
+/// يقابل "ج. التقارير والرسوم البيانية" في المواصفات: متابعة الحفظ
+/// والمراجعة بمؤشرات بصرية ملونة + رسوم بيانية لمقارنة الطلاب وإحصائيات
+/// المجمع الإجمالية ومقارنة الحلقات الفرعية.
+/// (getAcademicProgressData + saveAcademicProgressValue في Code.gs)
 class AcademicProgressScreen extends StatefulWidget {
   final String circleId;
   const AcademicProgressScreen({super.key, required this.circleId});
@@ -14,7 +19,9 @@ class AcademicProgressScreen extends StatefulWidget {
 }
 
 class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
-  late Future<List<Map<String, dynamic>>> _dataFuture;
+  late Future<void> _loadFuture;
+  List<Map<String, dynamic>> _rows = [];
+  Map<String, String> _subCircleByStudentId = {};
 
   @override
   void initState() {
@@ -23,9 +30,17 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
   }
 
   void _load() {
-    _dataFuture = context.read<ApiService>().getAcademicProgressData(widget.circleId).then(
-          (res) => asMapList(res['records']),
-        );
+    final api = context.read<ApiService>();
+    _loadFuture = Future.wait([
+      api.getAcademicProgressData(widget.circleId),
+      api.getStudents(widget.circleId),
+    ]).then((results) {
+      _rows = asMapList(results[0]['records']);
+      final students = asMapList(results[1]['students']);
+      _subCircleByStudentId = {
+        for (final s in students) (s['id']?.toString() ?? ''): (s['subCircle']?.toString() ?? ''),
+      };
+    });
   }
 
   Future<void> _updateField(String studentId, String studentName, String field, num currentValue) async {
@@ -67,57 +82,170 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
         _ => field,
       };
 
+  /// مؤشر لوني: أخضر (أداء جيد) / برتقالي (متوسط) / أحمر (يحتاج متابعة)
+  Color _indicatorColor(num value) {
+    if (value >= 15) return AppColors.primary;
+    if (value >= 5) return AppColors.accentOrange;
+    return AppColors.danger;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _dataFuture,
+    return FutureBuilder<void>(
+      future: _loadFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+        if (_rows.isEmpty) return const Center(child: Text('لا توجد بيانات تقدّم بعد.'));
 
-        final rows = snapshot.data!;
-        if (rows.isEmpty) return const Center(child: Text('لا توجد بيانات تقدّم بعد.'));
+        // إحصائيات إجمالي المجمع
+        final avgHifz = _rows.map((r) => (r['hifz'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
+        final avgMinor = _rows.map((r) => (r['minorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
+        final avgMajor = _rows.map((r) => (r['majorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
 
-        return ListView.builder(
+        // مقارنة الحلقات الفرعية (متوسط الحفظ لكل حلقة فرعية)
+        final Map<String, List<num>> bySubCircle = {};
+        for (final r in _rows) {
+          final sc = _subCircleByStudentId[r['studentId']?.toString()] ?? 'غير محدد';
+          bySubCircle.putIfAbsent(sc.isEmpty ? 'غير محدد' : sc, () => []).add((r['hifz'] ?? 0) as num);
+        }
+
+        final topStudents = [..._rows]..sort((a, b) => ((b['hifz'] ?? 0) as num).compareTo((a['hifz'] ?? 0) as num));
+        final chartStudents = topStudents.take(10).toList();
+
+        return ListView(
           padding: const EdgeInsets.all(12),
-          itemCount: rows.length,
-          itemBuilder: (context, i) {
-            final r = rows[i];
-            final id = r['studentId'] as String;
-            final name = r['studentName'] ?? '';
-            return Card(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        _progressChip('حفظ', r['hifz'] ?? 0, () => _updateField(id, name, 'hifz', r['hifz'] ?? 0)),
-                        _progressChip('مراجعة صغرى', r['minorReview'] ?? 0, () => _updateField(id, name, 'minorReview', r['minorReview'] ?? 0)),
-                        _progressChip('مراجعة كبرى', r['majorReview'] ?? 0, () => _updateField(id, name, 'majorReview', r['majorReview'] ?? 0)),
-                      ],
+          children: [
+            const Text('إحصائيات المجمع الإجمالية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _AvgCard(label: 'متوسط الحفظ', value: avgHifz)),
+                const SizedBox(width: 8),
+                Expanded(child: _AvgCard(label: 'متوسط المراجعة الصغرى', value: avgMinor)),
+                const SizedBox(width: 8),
+                Expanded(child: _AvgCard(label: 'متوسط المراجعة الكبرى', value: avgMajor)),
+              ],
+            ),
+            const SizedBox(height: 20),
+            if (chartStudents.isNotEmpty) ...[
+              const Text('مقارنة الطلاب (الحفظ)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 220,
+                child: BarChart(
+                  BarChartData(
+                    barGroups: chartStudents.asMap().entries.map((e) {
+                      final v = ((e.value['hifz'] ?? 0) as num).toDouble();
+                      return BarChartGroupData(x: e.key, barRods: [
+                        BarChartRodData(toY: v, color: _indicatorColor(v), width: 14, borderRadius: BorderRadius.circular(4)),
+                      ]);
+                    }).toList(),
+                    titlesData: FlTitlesData(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final i = value.toInt();
+                            if (i < 0 || i >= chartStudents.length) return const SizedBox.shrink();
+                            final name = chartStudents[i]['studentName']?.toString() ?? '';
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(name.length > 6 ? '${name.substring(0, 6)}…' : name, style: const TextStyle(fontSize: 9)),
+                            );
+                          },
+                        ),
+                      ),
+                      leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                     ),
-                  ],
+                    gridData: const FlGridData(show: true, drawVerticalLine: false),
+                    borderData: FlBorderData(show: false),
+                  ),
                 ),
               ),
-            );
-          },
+              const SizedBox(height: 24),
+            ],
+            if (bySubCircle.length > 1) ...[
+              const Text('مقارنة الحلقات الفرعية (متوسط الحفظ)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              ...bySubCircle.entries.map((e) {
+                final avg = e.value.fold<num>(0, (a, b) => a + b) / e.value.length;
+                return Card(
+                  child: ListTile(
+                    dense: true,
+                    title: Text(e.key),
+                    trailing: Text(avg.toStringAsFixed(1), style: TextStyle(fontWeight: FontWeight.bold, color: _indicatorColor(avg))),
+                  ),
+                );
+              }),
+              const SizedBox(height: 24),
+            ],
+            const Text('متابعة الحفظ والمراجعة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ..._rows.map((r) {
+              final id = r['studentId'] as String;
+              final name = r['studentName'] ?? '';
+              return Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _progressChip('حفظ', r['hifz'] ?? 0, () => _updateField(id, name, 'hifz', r['hifz'] ?? 0)),
+                          _progressChip('مراجعة صغرى', r['minorReview'] ?? 0, () => _updateField(id, name, 'minorReview', r['minorReview'] ?? 0)),
+                          _progressChip('مراجعة كبرى', r['majorReview'] ?? 0, () => _updateField(id, name, 'majorReview', r['majorReview'] ?? 0)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
         );
       },
     );
   }
 
   Widget _progressChip(String label, num value, VoidCallback onTap) {
+    final color = _indicatorColor(value);
     return ActionChip(
       label: Text('$label: $value'),
       onPressed: onTap,
-      avatar: const Icon(Icons.edit, size: 16),
+      avatar: CircleAvatar(backgroundColor: color, radius: 6),
+      backgroundColor: color.withValues(alpha: 0.08),
+    );
+  }
+}
+
+class _AvgCard extends StatelessWidget {
+  final String label;
+  final double value;
+  const _AvgCard({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Column(
+          children: [
+            Text(value.toStringAsFixed(1), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.primary)),
+            const SizedBox(height: 4),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey), textAlign: TextAlign.center),
+          ],
+        ),
+      ),
     );
   }
 }
