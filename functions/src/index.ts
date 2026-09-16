@@ -16,6 +16,11 @@ export {
   getInitialData,
   recordTeacherCheckIn,
   recordTeacherCheckOut,
+  adminStampTeacherAttendance,
+  setTeacherAbsentToday,
+  getTeacherAttendanceReport,
+  getMonthlyPayroll,
+  saveTodayAttendanceToSheet,
   saveTeachersAndSettings,
 } from "./teacherAttendance";
 
