@@ -7,9 +7,12 @@ import '../../theme.dart';
 import '../../utils/json_utils.dart';
 
 /// يقابل تحضير الطلاب (getStudents + saveStudentAttendanceDay) في Code.gs
+/// — لو filterTeacherId متحدد (المعلم بيفتح شاشته)، بتتفلتر القائمة على
+/// طلابه هو بس بدل كل طلاب المجمع.
 class StudentAttendanceScreen extends StatefulWidget {
   final String circleId;
-  const StudentAttendanceScreen({super.key, required this.circleId});
+  final String? filterTeacherId;
+  const StudentAttendanceScreen({super.key, required this.circleId, this.filterTeacherId});
 
   @override
   State<StudentAttendanceScreen> createState() => _StudentAttendanceScreenState();
@@ -30,7 +33,10 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
 
   void _load() {
     _studentsFuture = context.read<ApiService>().getStudents(widget.circleId).then((res) {
-      final list = asMapList(res['students']);
+      var list = asMapList(res['students']);
+      if (widget.filterTeacherId != null) {
+        list = list.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+      }
       for (final s in list) {
         _statusByStudentId[s['id']] = 'present';
       }
