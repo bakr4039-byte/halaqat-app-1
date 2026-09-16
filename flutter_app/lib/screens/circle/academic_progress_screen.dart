@@ -224,6 +224,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
                     ),
                   ],
                 ),
+              ),
               );
             }),
           ],
