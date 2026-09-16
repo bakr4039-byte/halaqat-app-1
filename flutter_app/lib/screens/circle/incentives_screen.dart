@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../utils/export_utils.dart';
 import '../../utils/json_utils.dart';
 
 /// يقابل لوحة الشرف ونقاط التحفيز (getLeaderboard + applyIncentivePointsBulk) في Code.gs
@@ -16,6 +17,7 @@ class IncentivesScreen extends StatefulWidget {
 
 class _IncentivesScreenState extends State<IncentivesScreen> {
   late Future<List<Map<String, dynamic>>> _leaderboardFuture;
+  List<Map<String, dynamic>> _lastLeaderboard = [];
 
   @override
   void initState() {
@@ -24,9 +26,39 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
   }
 
   void _load() {
-    _leaderboardFuture = context.read<ApiService>().getLeaderboard(widget.circleId).then(
-          (res) => asMapList(res['leaderboard']),
-        );
+    _leaderboardFuture = context.read<ApiService>().getLeaderboard(widget.circleId).then((res) {
+      final rows = asMapList(res['leaderboard']);
+      _lastLeaderboard = rows;
+      return rows;
+    });
+  }
+
+  static const _medalIcons = {1: '🥇', 2: '🥈', 3: '🥉'};
+
+  Future<void> _exportLeaderboardPdf() async {
+    await exportTablePdf(
+      title: 'لوحة الشرف',
+      headers: const ['الترتيب', 'اسم الطالب', 'الحلقة', 'النقاط'],
+      rows: _lastLeaderboard
+          .asMap()
+          .entries
+          .map((e) => ['${e.key + 1}', e.value['studentName']?.toString() ?? '', e.value['subCircle']?.toString() ?? '', '${e.value['points'] ?? 0}'])
+          .toList(),
+      fileName: 'لوحة_الشرف.pdf',
+    );
+  }
+
+  Future<void> _exportLeaderboardExcel() async {
+    await exportTableExcel(
+      sheetTitle: 'لوحة الشرف',
+      headers: const ['الترتيب', 'اسم الطالب', 'الحلقة', 'النقاط'],
+      rows: _lastLeaderboard
+          .asMap()
+          .entries
+          .map((e) => ['${e.key + 1}', e.value['studentName']?.toString() ?? '', e.value['subCircle']?.toString() ?? '', '${e.value['points'] ?? 0}'])
+          .toList(),
+      fileName: 'لوحة_الشرف.xlsx',
+    );
   }
 
   Future<void> _showApplyPointsDialog() async {
@@ -133,10 +165,17 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     }
     if (!mounted) return;
 
+    List<String> ledgerRow(Map<String, dynamic> e) => [
+          e['studentName']?.toString() ?? '',
+          e['itemName']?.toString() ?? '',
+          e['type'] == 'grant' ? 'منح' : 'خصم',
+          '${e['points'] ?? 0}',
+        ];
+
     await showDialog<void>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('سجل النقاط'),
+        title: const Text('سجل المنح والخصم'),
         content: SizedBox(
           width: double.maxFinite,
           height: 400,
@@ -169,6 +208,27 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
                     ),
         ),
         actions: [
+          if (ledger.isNotEmpty) ...[
+            TextButton.icon(
+              onPressed: () => printTablePdf(
+                title: 'سجل المنح والخصم',
+                headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
+                rows: ledger.map(ledgerRow).toList(),
+              ),
+              icon: const Icon(Icons.print_outlined, size: 18),
+              label: const Text('طباعة'),
+            ),
+            TextButton.icon(
+              onPressed: () => exportTableExcel(
+                sheetTitle: 'سجل المنح والخصم',
+                headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
+                rows: ledger.map(ledgerRow).toList(),
+                fileName: 'سجل_التحفيز.xlsx',
+              ),
+              icon: const Icon(Icons.grid_on_outlined, size: 18),
+              label: const Text('Excel'),
+            ),
+          ],
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
         ],
       ),
@@ -178,8 +238,10 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: Row(
-        mainAxisSize: MainAxisSize.min,
+      floatingActionButton: Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        alignment: WrapAlignment.end,
         children: [
           FloatingActionButton.extended(
             heroTag: 'ledgerBtn',
@@ -188,7 +250,37 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
             label: const Text('سجل النقاط'),
             backgroundColor: AppColors.accentBlue,
           ),
-          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'exportBtn',
+            onPressed: _lastLeaderboard.isEmpty
+                ? null
+                : () => showModalBottomSheet(
+                      context: context,
+                      builder: (context) => SafeArea(
+                        child: Wrap(children: [
+                          ListTile(
+                            leading: const Icon(Icons.picture_as_pdf_outlined),
+                            title: const Text('طباعة PDF'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _exportLeaderboardPdf();
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.grid_on_outlined),
+                            title: const Text('تصدير Excel'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              _exportLeaderboardExcel();
+                            },
+                          ),
+                        ]),
+                      ),
+                    ),
+            icon: const Icon(Icons.ios_share),
+            label: const Text('تصدير'),
+            backgroundColor: AppColors.primaryDark,
+          ),
           FloatingActionButton.extended(
             heroTag: 'applyPointsBtn',
             onPressed: _showApplyPointsDialog,
@@ -216,13 +308,17 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
               itemBuilder: (context, i) {
                 final r = rows[i];
                 final rank = i + 1;
+                final medal = _medalIcons[rank];
                 return Card(
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: rank <= 3 ? AppColors.accentOrange : Colors.grey.shade300,
-                      child: Text('$rank', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      child: medal != null
+                          ? Text(medal, style: const TextStyle(fontSize: 18))
+                          : Text('$rank', style: const TextStyle(fontWeight: FontWeight.bold)),
                     ),
                     title: Text(r['studentName'] ?? ''),
+                    subtitle: (r['subCircle']?.toString() ?? '').isNotEmpty ? Text(r['subCircle'].toString()) : null,
                     trailing: Text(
                       '${r['points']} نقطة',
                       style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
