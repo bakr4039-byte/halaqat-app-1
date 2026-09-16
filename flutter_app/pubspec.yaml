@@ -30,6 +30,9 @@ dependencies:
   # تخزين محلي بسيط (تذكّر آخر تسجيل دخول)
   shared_preferences: ^2.3.2
 
+  # الموقع الجغرافي (تسجيل حضور/انصراف المعلم بالموقع)
+  geolocator: ^13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
