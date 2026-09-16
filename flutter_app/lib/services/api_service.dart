@@ -89,6 +89,14 @@ class ApiService {
   Future<Map<String, dynamic>> getIncentiveLedger(String circleId) =>
       _call('getIncentiveLedger', {'circleId': circleId});
 
+  Future<Map<String, dynamic>> updateIncentiveTransaction({
+    required String circleId,
+    required String transactionId,
+    required Map<String, dynamic> updates,
+  }) => _call('updateIncentiveTransaction', {
+        'circleId': circleId, 'transactionId': transactionId, 'updates': updates,
+      });
+
   Future<Map<String, dynamic>> deleteIncentiveTransaction({
     required String circleId,
     required String transactionId,
@@ -118,6 +126,65 @@ class ApiService {
   }) => _call('saveAcademicProgressValue', {
         'circleId': circleId, 'studentId': studentId, 'studentName': studentName,
         'field': field, 'value': value,
+      });
+
+  // ---------- جدول تحضير المعلمين اليومي (لوحة صاحب المجمع) ----------
+  Future<Map<String, dynamic>> adminStampTeacherAttendance({
+    required String circleId,
+    required String teacherId,
+    required String teacherName,
+    required String dateKey,
+    required String dayName,
+    required String type, // 'checkIn' | 'checkOut'
+  }) => _call('adminStampTeacherAttendance', {
+        'circleId': circleId, 'teacherId': teacherId, 'teacherName': teacherName,
+        'dateKey': dateKey, 'dayName': dayName, 'type': type,
+      });
+
+  Future<Map<String, dynamic>> setTeacherAbsentToday({
+    required String circleId,
+    required String teacherId,
+    required String teacherName,
+    required String dateKey,
+    required String dayName,
+    required bool isAbsent,
+  }) => _call('setTeacherAbsentToday', {
+        'circleId': circleId, 'teacherId': teacherId, 'teacherName': teacherName,
+        'dateKey': dateKey, 'dayName': dayName, 'isAbsent': isAbsent,
+      });
+
+  Future<Map<String, dynamic>> getTeacherAttendanceReport({
+    required String circleId,
+    required String fromDateKey,
+    required String toDateKey,
+  }) => _call('getTeacherAttendanceReport', {
+        'circleId': circleId, 'fromDateKey': fromDateKey, 'toDateKey': toDateKey,
+      });
+
+  Future<Map<String, dynamic>> getMonthlyPayroll({
+    required String circleId,
+    required String fromDateKey,
+    required String toDateKey,
+  }) => _call('getMonthlyPayroll', {
+        'circleId': circleId, 'fromDateKey': fromDateKey, 'toDateKey': toDateKey,
+      });
+
+  Future<Map<String, dynamic>> saveTodayAttendanceToSheet({
+    required String circleId,
+    required String dateKey,
+  }) => _call('saveTodayAttendanceToSheet', {'circleId': circleId, 'dateKey': dateKey});
+
+  // ---------- تحضير الطلاب (حالة واحدة فقط) ----------
+  Future<Map<String, dynamic>> saveSingleStudentAttendance({
+    required String circleId,
+    required String dateKey,
+    required String studentId,
+    required String studentName,
+    required String teacherId,
+    required String status,
+  }) => _call('saveSingleStudentAttendance', {
+        'circleId': circleId, 'dateKey': dateKey, 'studentId': studentId,
+        'studentName': studentName, 'teacherId': teacherId, 'status': status,
       });
 
   Future<Map<String, dynamic>> saveTeachersAndSettings({
