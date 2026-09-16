@@ -77,21 +77,21 @@ export const getIncentiveLedger = functions.onCall(async (request) => {
   return { success: true, ledger: snap.docs.map((d) => ({ id: d.id, ...d.data() })) };
 });
 
-/** يقابل getLeaderboard في Code.gs — إجمالي نقاط كل طالب مرتّبة تنازليًا */
+/** يقابل getLeaderboard في Code.gs — إجمالي نقاط كل طالب مرتّبة تنازليًا، مع عمود الحلقة */
 export const getLeaderboard = functions.onCall(async (request) => {
   const { circleId } = request.data as { circleId: string };
   requireCircleAccess(request, circleId);
 
   const snap = await circleCol(circleId, "incentiveLedger").get();
-  const totals: Record<string, { studentName: string; points: number }> = {};
+  const totals: Record<string, { studentName: string; subCircle: string; points: number }> = {};
   snap.forEach((doc) => {
     const r = doc.data();
-    if (!totals[r.studentId]) totals[r.studentId] = { studentName: r.studentName, points: 0 };
+    if (!totals[r.studentId]) totals[r.studentId] = { studentName: r.studentName, subCircle: r.subCircle || "", points: 0 };
     totals[r.studentId].points += r.type === "deduct" ? -Number(r.points) : Number(r.points);
   });
 
   const leaderboard = Object.entries(totals)
-    .map(([studentId, v]) => ({ studentId, studentName: v.studentName, points: v.points }))
+    .map(([studentId, v]) => ({ studentId, studentName: v.studentName, subCircle: v.subCircle, points: v.points }))
     .sort((a, b) => b.points - a.points);
 
   return { success: true, leaderboard };
