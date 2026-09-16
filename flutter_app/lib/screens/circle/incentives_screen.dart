@@ -1,4 +1,3 @@
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -123,13 +122,80 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     }
   }
 
+  Future<void> _showLedgerDialog() async {
+    List<Map<String, dynamic>> ledger = [];
+    String? error;
+    try {
+      final res = await context.read<ApiService>().getIncentiveLedger(widget.circleId);
+      ledger = asMapList(res['ledger']);
+    } catch (e) {
+      error = 'فشل تحميل السجل: $e';
+    }
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('سجل النقاط'),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 400,
+          child: error != null
+              ? Text(error, style: const TextStyle(color: Colors.red))
+              : ledger.isEmpty
+                  ? const Center(child: Text('لا توجد عمليات مسجّلة بعد.'))
+                  : ListView.builder(
+                      itemCount: ledger.length,
+                      itemBuilder: (context, i) {
+                        final entry = ledger[i];
+                        final isGrant = entry['type'] == 'grant';
+                        return ListTile(
+                          dense: true,
+                          leading: Icon(
+                            isGrant ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                            color: isGrant ? AppColors.primary : AppColors.danger,
+                          ),
+                          title: Text(entry['studentName']?.toString() ?? ''),
+                          subtitle: Text(entry['itemName']?.toString() ?? ''),
+                          trailing: Text(
+                            '${isGrant ? '+' : '-'}${entry['points']}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isGrant ? AppColors.primary : AppColors.danger,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showApplyPointsDialog,
-        icon: const Icon(Icons.add_reaction_outlined),
-        label: const Text('تطبيق نقاط'),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'ledgerBtn',
+            onPressed: _showLedgerDialog,
+            icon: const Icon(Icons.history),
+            label: const Text('سجل النقاط'),
+            backgroundColor: AppColors.accentBlue,
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton.extended(
+            heroTag: 'applyPointsBtn',
+            onPressed: _showApplyPointsDialog,
+            icon: const Icon(Icons.add_reaction_outlined),
+            label: const Text('تطبيق نقاط'),
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: () async => setState(_load),
