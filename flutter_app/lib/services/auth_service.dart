@@ -15,8 +15,10 @@ class AuthService extends ChangeNotifier {
 
   String? _role;
   String? _circleId;
+  String? _teacherId;
   String? get role => _role;
   String? get circleId => _circleId;
+  String? get teacherId => _teacherId;
 
   /// يسجّل الدخول بـ username/password ويحدّد الدور (superAdmin/owner/teacher)
   Future<void> login(String username, String password) async {
@@ -34,11 +36,12 @@ class AuthService extends ChangeNotifier {
     final token = data['token'] as String;
     await _auth.signInWithCustomToken(token);
 
-    // نجبر تحديث الـ ID token عشان الـ custom claims (role/circleId) تبقى متاحة فورًا
+    // نجبر تحديث الـ ID token عشان الـ custom claims (role/circleId/teacherId) تبقى متاحة فورًا
     await _auth.currentUser?.getIdTokenResult(true);
     final claims = (await _auth.currentUser?.getIdTokenResult())?.claims;
     _role = claims?['role'] as String?;
     _circleId = claims?['circleId'] as String?;
+    _teacherId = claims?['teacherId'] as String?;
     notifyListeners();
   }
 
@@ -46,6 +49,7 @@ class AuthService extends ChangeNotifier {
     final claims = (await _auth.currentUser?.getIdTokenResult(true))?.claims;
     _role = claims?['role'] as String?;
     _circleId = claims?['circleId'] as String?;
+    _teacherId = claims?['teacherId'] as String?;
     notifyListeners();
   }
 
@@ -53,6 +57,7 @@ class AuthService extends ChangeNotifier {
     await _auth.signOut();
     _role = null;
     _circleId = null;
+    _teacherId = null;
     notifyListeners();
   }
 }
