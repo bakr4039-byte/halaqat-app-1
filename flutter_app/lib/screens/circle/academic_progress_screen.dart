@@ -35,11 +35,27 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
       api.getAcademicProgressData(widget.circleId),
       api.getStudents(widget.circleId),
     ]).then((results) {
-      _rows = asMapList(results[0]['records']);
+      final progressByStudentId = {
+        for (final r in asMapList(results[0]['records'])) (r['studentId']?.toString() ?? ''): r,
+      };
       final students = asMapList(results[1]['students']);
       _subCircleByStudentId = {
         for (final s in students) (s['id']?.toString() ?? ''): (s['subCircle']?.toString() ?? ''),
       };
+      // نبني صفًا لكل طالب في الحلقة (وليس فقط الطلاب اللي عندهم سجل تقدّم
+      // موجود مسبقًا)، عشان المعلم يقدر يدخل أول قيمة له بدل ما تفضل الشاشة
+      // فاضية للأبد لعدم وجود بيانات.
+      _rows = students.map((s) {
+        final id = s['id']?.toString() ?? '';
+        final existing = progressByStudentId[id];
+        return {
+          'studentId': id,
+          'studentName': s['name']?.toString() ?? '',
+          'hifz': existing?['hifz'] ?? 0,
+          'minorReview': existing?['minorReview'] ?? 0,
+          'majorReview': existing?['majorReview'] ?? 0,
+        };
+      }).toList();
     });
   }
 
@@ -98,7 +114,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-        if (_rows.isEmpty) return const Center(child: Text('لا توجد بيانات تقدّم بعد.'));
+        if (_rows.isEmpty) return const Center(child: Text('لا يوجد طلاب في هذه الحلقة بعد.'));
 
         // إحصائيات إجمالي المجمع
         final avgHifz = _rows.map((r) => (r['hifz'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
@@ -204,10 +220,9 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
                           _progressChip('حفظ', r['hifz'] ?? 0, () => _updateField(id, name, 'hifz', r['hifz'] ?? 0)),
                           _progressChip('مراجعة صغرى', r['minorReview'] ?? 0, () => _updateField(id, name, 'minorReview', r['minorReview'] ?? 0)),
                           _progressChip('مراجعة كبرى', r['majorReview'] ?? 0, () => _updateField(id, name, 'majorReview', r['majorReview'] ?? 0)),
-                        ],
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
+                  ],
                 ),
               );
             }),

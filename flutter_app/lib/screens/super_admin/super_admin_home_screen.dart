@@ -92,11 +92,9 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                                   );
                               if (context.mounted) Navigator.pop(context, true);
                             } catch (e) {
-                              // ignore: avoid_print
-                              print('CREATE CIRCLE DEBUG ERROR: $e');
                               setInner(() {
                                 submitting = false;
-                                dialogError = 'فشل الإنشاء (تشخيص مؤقت): $e';
+                                dialogError = 'فشل الإنشاء: $e';
                               });
                             }
                           },
@@ -135,28 +133,12 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            width: double.infinity,
-            color: Colors.yellow,
-            padding: const EdgeInsets.all(8),
-            child: const Text(
-              'تشخيص شامل: جسم الشاشة بدأ يُرسَم (لو دي مش ظاهرة فالمشكلة قبل الـ FutureBuilder)',
-              style: TextStyle(fontSize: 11, color: Colors.black),
-            ),
-          ),
           Expanded(
             child: RefreshIndicator(
               onRefresh: () async => setState(_load),
               child: FutureBuilder<Map<String, dynamic>>(
                 future: _overviewFuture,
                 builder: (context, snapshot) {
-                  try {
-                    // ignore: avoid_print
-                    print('OVERVIEW DEBUG: state=${snapshot.connectionState} '
-                        'hasError=${snapshot.hasError} hasData=${snapshot.hasData}');
-                  } catch (_) {
-                    // تجاهل أي خطأ في الطباعة نفسها
-                  }
                   try {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(
@@ -167,7 +149,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                             children: [
                               CircularProgressIndicator(),
                               SizedBox(height: 12),
-                              Text('جارِ التحميل (تشخيص مؤقت)...'),
+                              Text('يتم التحميل...'),
                             ],
                           ),
                         ),
@@ -179,7 +161,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                           padding: const EdgeInsets.all(24),
                           child: SingleChildScrollView(
                             child: SelectableText(
-                              'خطأ (تشخيص مؤقت): ${snapshot.error}\n\n${snapshot.stackTrace}',
+                              'حدث خطأ أثناء تحميل البيانات: ${snapshot.error}',
                               style: const TextStyle(color: Colors.red),
                             ),
                           ),
@@ -187,7 +169,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                       );
                     }
                     if (!snapshot.hasData || snapshot.data == null) {
-                      return const Center(child: Text('لا توجد بيانات (تشخيص مؤقت): hasData=false'));
+                      return const Center(child: Text('لا توجد بيانات متاحة حاليًا.'));
                     }
                     final data = snapshot.data!;
                     List<Map<String, dynamic>> circles;
@@ -199,7 +181,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                           padding: const EdgeInsets.all(24),
                           child: SingleChildScrollView(
                             child: SelectableText(
-                              'خطأ تحويل البيانات (تشخيص مؤقت): $e\n\nالبيانات الخام: $data\n\n$st',
+                              'تعذّر تحويل بيانات المجمعات: $e',
                               style: const TextStyle(color: Colors.red),
                             ),
                           ),
@@ -210,9 +192,6 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                     return ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
-                        Text('تشخيص مؤقت: عدد المجمعات المستلمة = ${circles.length}',
-                            style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
                         Row(
                           children: [
                             _StatCard(label: 'المجمعات', value: '${data['circlesCount']}'),
@@ -245,7 +224,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                         padding: const EdgeInsets.all(24),
                         child: SingleChildScrollView(
                           child: SelectableText(
-                            'خطأ غير متوقع أثناء رسم الشاشة (تشخيص شامل):\n$e\n\n$st',
+                            'حدث خطأ غير متوقع أثناء عرض الشاشة: $e',
                             style: const TextStyle(color: Colors.red),
                           ),
                         ),
