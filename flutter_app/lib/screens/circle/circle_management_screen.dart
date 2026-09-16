@@ -1,10 +1,17 @@
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
 
 import '../../services/api_service.dart';
 import '../../theme.dart';
+import '../../utils/export_utils.dart';
 import '../../utils/json_utils.dart';
+import 'payroll_export_tab.dart';
+import 'teacher_dashboard_tab.dart';
 
 /// شاشة إدارة المجمع لصاحب المجمع — نسخة كاملة تقابل قسم "إدارة الطلاب" في
 /// التطبيق القديم (main.html): إعدادات المجمع، المعلمون، الطلاب، اللجنة
@@ -25,7 +32,7 @@ class _CircleManagementScreenState extends State<CircleManagementScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
   }
 
   @override
@@ -47,7 +54,9 @@ class _CircleManagementScreenState extends State<CircleManagementScreen>
             unselectedLabelColor: Colors.grey,
             indicatorColor: AppColors.primary,
             tabs: const [
+              Tab(text: 'الرئيسية'),
               Tab(text: 'الإعدادات والمعلمون'),
+              Tab(text: 'الإحصائيات والرواتب'),
               Tab(text: 'الطلاب'),
               Tab(text: 'التحفيز'),
               Tab(text: 'التقارير'),
@@ -59,7 +68,9 @@ class _CircleManagementScreenState extends State<CircleManagementScreen>
           child: TabBarView(
             controller: _tabController,
             children: [
+              TeacherDashboardTab(circleId: widget.circleId),
               _SettingsAndTeachersTab(circleId: widget.circleId),
+              PayrollExportTab(circleId: widget.circleId),
               _StudentsTab(circleId: widget.circleId),
               _IncentivesManagementTab(circleId: widget.circleId),
               _ReportsTab(circleId: widget.circleId),
@@ -98,10 +109,32 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
   final _graceMinutesCtrl = TextEditingController();
   final _reminderMinutesCtrl = TextEditingController();
   final _reportEmailCtrl = TextEditingController();
+  final _logoUrlCtrl = TextEditingController();
+  final _targetCheckInCtrl = TextEditingController();
+  final _targetCheckOutCtrl = TextEditingController();
+  final _autoAbsentCutoffCtrl = TextEditingController();
+  final _circleLatCtrl = TextEditingController();
+  final _circleLngCtrl = TextEditingController();
+  final _geofenceRadiusCtrl = TextEditingController();
+  final _googleSheetIdCtrl = TextEditingController();
   String _prayerSlot = 'Asr';
   bool _autoWhatsapp = false;
   bool _prayerReminderEnabled = true;
   bool _teacherReminderEnabled = false;
+  bool _geofenceEnabled = false;
+  bool _autoAbsentEnabled = false;
+  bool _locatingNow = false;
+  String _calendarType = 'gregorian';
+  Color _themeColor = AppColors.primary;
+
+  static const _themeColorOptions = <Color>[
+    AppColors.primary,
+    AppColors.accentBlue,
+    AppColors.accentOrange,
+    AppColors.danger,
+    Colors.teal,
+    Colors.indigo,
+  ];
 
   List<Map<String, dynamic>> _teachers = [];
 
@@ -135,10 +168,26 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         _graceMinutesCtrl.text = (settings['graceMinutes'] ?? 0).toString();
         _reminderMinutesCtrl.text = (settings['reminderMinutesBefore'] ?? 15).toString();
         _reportEmailCtrl.text = settings['reportEmail']?.toString() ?? '';
+        _logoUrlCtrl.text = settings['logoUrl']?.toString() ?? '';
+        _targetCheckInCtrl.text = settings['targetCheckInTime']?.toString() ?? '';
+        _targetCheckOutCtrl.text = settings['targetCheckOutTime']?.toString() ?? '';
+        _autoAbsentCutoffCtrl.text = settings['autoAbsentCutoffTime']?.toString() ?? '';
+        _circleLatCtrl.text = settings['circleLat']?.toString() ?? '';
+        _circleLngCtrl.text = settings['circleLng']?.toString() ?? '';
+        _geofenceRadiusCtrl.text = settings['geofenceRadiusMeters']?.toString() ?? '100';
+        _googleSheetIdCtrl.text = settings['googleSheetId']?.toString() ?? '';
         _prayerSlot = _prayerSlots.contains(settings['prayerSlot']) ? settings['prayerSlot'] as String : 'Asr';
         _autoWhatsapp = settings['autoWhatsapp'] == true;
         _prayerReminderEnabled = settings['prayerReminderEnabled'] != false;
         _teacherReminderEnabled = settings['teacherReminderEnabled'] == true;
+        _geofenceEnabled = settings['geofenceEnabled'] == true;
+        _autoAbsentEnabled = settings['autoAbsentEnabled'] == true;
+        _calendarType = settings['calendarType'] == 'hijri' ? 'hijri' : 'gregorian';
+        final themeHex = settings['themeColor']?.toString();
+        if (themeHex != null && themeHex.startsWith('#')) {
+          final parsed = int.tryParse(themeHex.substring(1), radix: 16);
+          if (parsed != null) _themeColor = Color(0xFF000000 | parsed);
+        }
         _teachers = teachers.map((t) => {...t, '_key': (t['id'] ?? _newKey()).toString()}).toList();
         _loaded = true;
       }
@@ -155,7 +204,39 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
     _graceMinutesCtrl.dispose();
     _reminderMinutesCtrl.dispose();
     _reportEmailCtrl.dispose();
+    _logoUrlCtrl.dispose();
+    _targetCheckInCtrl.dispose();
+    _targetCheckOutCtrl.dispose();
+    _autoAbsentCutoffCtrl.dispose();
+    _circleLatCtrl.dispose();
+    _circleLngCtrl.dispose();
+    _geofenceRadiusCtrl.dispose();
+    _googleSheetIdCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _useCurrentLocation() async {
+    setState(() => _locatingNow = true);
+    try {
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw 'خدمة الموقع غير مفعّلة على الجهاز.';
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        throw 'صلاحية الموقع مرفوضة.';
+      }
+      final pos = await Geolocator.getCurrentPosition(locationSettings: const LocationSettings(accuracy: LocationAccuracy.high));
+      setState(() {
+        _circleLatCtrl.text = pos.latitude.toStringAsFixed(6);
+        _circleLngCtrl.text = pos.longitude.toStringAsFixed(6);
+      });
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('تعذّر تحديد الموقع: $e')));
+    } finally {
+      if (mounted) setState(() => _locatingNow = false);
+    }
   }
 
   void _addTeacher() {
@@ -195,6 +276,18 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         'autoWhatsapp': _autoWhatsapp,
         'prayerReminderEnabled': _prayerReminderEnabled,
         'teacherReminderEnabled': _teacherReminderEnabled,
+        'logoUrl': _logoUrlCtrl.text.trim(),
+        'targetCheckInTime': _targetCheckInCtrl.text.trim(),
+        'targetCheckOutTime': _targetCheckOutCtrl.text.trim(),
+        'autoAbsentEnabled': _autoAbsentEnabled,
+        'autoAbsentCutoffTime': _autoAbsentCutoffCtrl.text.trim(),
+        'geofenceEnabled': _geofenceEnabled,
+        'circleLat': double.tryParse(_circleLatCtrl.text.trim()),
+        'circleLng': double.tryParse(_circleLngCtrl.text.trim()),
+        'geofenceRadiusMeters': int.tryParse(_geofenceRadiusCtrl.text.trim()) ?? 100,
+        'googleSheetId': _googleSheetIdCtrl.text.trim(),
+        'calendarType': _calendarType,
+        'themeColor': '#${_themeColor.value.toRadixString(16).substring(2)}',
       };
 
       final teachersToSend = _teachers.map((t) {
@@ -278,7 +371,6 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
                       controller: _shiftDurationCtrl,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(labelText: 'مدة الحلقة (دقيقة)'),
-
                     ),
                   ),
                 ],
@@ -326,6 +418,123 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
                 title: const Text('تذكير المعلمين'),
                 value: _teacherReminderEnabled,
                 onChanged: (v) => setState(() => _teacherReminderEnabled = v),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('تسجيل غياب تلقائي'),
+                subtitle: const Text('لأي معلم لم يسجل حضوره حتى الساعة المحددة — تعمل من الخادم حتى لو التطبيق مغلق'),
+                value: _autoAbsentEnabled,
+                onChanged: (v) => setState(() => _autoAbsentEnabled = v),
+              ),
+              if (_autoAbsentEnabled)
+                TextField(
+                  controller: _autoAbsentCutoffCtrl,
+                  decoration: const InputDecoration(labelText: 'ساعة تسجيل الغياب التلقائي (HH:mm)', hintText: '14:00'),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _targetCheckInCtrl,
+                      decoration: const InputDecoration(labelText: 'وقت الحضور المستهدف (HH:mm)', hintText: '15:30'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _targetCheckOutCtrl,
+                      decoration: const InputDecoration(labelText: 'وقت الانصراف المستهدف (HH:mm)', hintText: '17:00'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text('تنسيق التقويم', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 4),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'gregorian', label: Text('ميلادي')),
+                  ButtonSegment(value: 'hijri', label: Text('هجري')),
+                ],
+                selected: {_calendarType},
+                onSelectionChanged: (s) => setState(() => _calendarType = s.first),
+              ),
+              const SizedBox(height: 16),
+              const Text('تنسيق الألوان', style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                children: _themeColorOptions.map((c) {
+                  final selected = c.value == _themeColor.value;
+                  return GestureDetector(
+                    onTap: () => setState(() => _themeColor = c),
+                    child: CircleAvatar(
+                      backgroundColor: c,
+                      radius: selected ? 18 : 14,
+                      child: selected ? const Icon(Icons.check, color: Colors.white, size: 16) : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _logoUrlCtrl,
+                decoration: const InputDecoration(labelText: 'رابط شعار المجمع (Logo URL)'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _googleSheetIdCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'معرّف Google Sheet (لحفظ تسجيل اليوم)',
+                  hintText: 'يُنسخ من رابط جدول البيانات',
+                ),
+              ),
+              const Divider(height: 32),
+              const Text('نقطة الموقع الجغرافي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text(
+                'السماح بتسجيل الحضور/الانصراف فقط داخل موقع العمل، بتحديد خط الطول والعرض ونطاق المسافة بالمتر.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('السماح بتسجيل الحضور/الانصراف داخل موقع العمل فقط'),
+                value: _geofenceEnabled,
+                onChanged: (v) => setState(() => _geofenceEnabled = v),
+              ),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _circleLatCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      decoration: const InputDecoration(labelText: 'خط العرض (Latitude)'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _circleLngCtrl,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                      decoration: const InputDecoration(labelText: 'خط الطول (Longitude)'),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _geofenceRadiusCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'نطاق المسافة المسموح به (متر)'),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: _locatingNow ? null : _useCurrentLocation,
+                icon: _locatingNow
+                    ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.my_location),
+                label: const Text('استخدام موقعي الحالي كموقع المجمع'),
               ),
               const Divider(height: 32),
               Row(
@@ -471,7 +680,24 @@ class _StudentsTabState extends State<_StudentsTab> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _teachers = [];
 
+  final _searchCtrl = TextEditingController();
+  String _searchQuery = '';
+  String? _filterTeacherId;
+  String? _filterSubCircle;
+  String? _filterStatus;
+  bool _importing = false;
+
   static const _statusLabels = {'active': 'نشط', 'inactive': 'غير نشط'};
+
+  List<Map<String, dynamic>> get _filteredStudents {
+    return _students.where((s) {
+      if (_searchQuery.isNotEmpty && !(s['name']?.toString() ?? '').contains(_searchQuery)) return false;
+      if (_filterTeacherId != null && s['teacherId']?.toString() != _filterTeacherId) return false;
+      if (_filterSubCircle != null && (s['subCircle']?.toString() ?? '') != _filterSubCircle) return false;
+      if (_filterStatus != null && (s['status']?.toString() ?? 'active') != _filterStatus) return false;
+      return true;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -480,6 +706,81 @@ class _StudentsTabState extends State<_StudentsTab> {
   }
 
   String _newKey() => 'new_${_keyCounter++}';
+
+  String _teacherName(String? id) {
+    if (id == null || id.isEmpty) return '';
+    final match = _teachers.where((t) => t['id']?.toString() == id).toList();
+    return match.isNotEmpty ? (match.first['name']?.toString() ?? '') : '';
+  }
+
+  List<List<String>> _exportRows(List<Map<String, dynamic>> list) => list
+      .map((s) => [
+            s['name']?.toString() ?? '',
+            s['guardianName']?.toString() ?? '',
+            s['guardianPhone']?.toString() ?? '',
+            s['stage']?.toString() ?? '',
+            _teacherName(s['teacherId']?.toString()),
+            s['subCircle']?.toString() ?? '',
+            s['address']?.toString() ?? '',
+            _statusLabels[s['status']?.toString()] ?? 'نشط',
+          ])
+      .toList();
+
+  static const _exportHeaders = ['اسم الطالب', 'ولي الأمر', 'جوال ولي الأمر', 'المرحلة', 'المعلم', 'الحلقة', 'العنوان', 'الحالة'];
+
+  Future<void> _exportPdf() async {
+    await exportTablePdf(title: 'قائمة الطلاب', headers: _exportHeaders, rows: _exportRows(_filteredStudents), fileName: 'قائمة_الطلاب.pdf');
+  }
+
+  Future<void> _exportExcel() async {
+    await exportTableExcel(sheetTitle: 'الطلاب', headers: _exportHeaders, rows: _exportRows(_filteredStudents), fileName: 'قائمة_الطلاب.xlsx');
+  }
+
+  /// استيراد من إكسل — يتوقع الأعمدة بنفس ترتيب التصدير: اسم الطالب، ولي
+  /// الأمر، جوال ولي الأمر، المرحلة، المعلم (بالاسم)، الحلقة، العنوان، الحالة.
+  /// الصف الأول يُعتبر رؤوس أعمدة ويُتجاهل.
+  Future<void> _importExcel() async {
+    setState(() => _importing = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['xlsx'], withData: true);
+      final bytes = result?.files.single.bytes;
+      if (bytes == null) return;
+
+      final rows = readExcelRows(Uint8List.fromList(bytes));
+      if (rows.isEmpty) return;
+
+      var imported = 0;
+      for (final row in rows.skip(1)) {
+        if (row.isEmpty || row[0].trim().isEmpty) continue;
+        final teacherMatch = row.length > 4
+            ? _teachers.where((t) => (t['name']?.toString() ?? '') == row[4].trim()).toList()
+            : <Map<String, dynamic>>[];
+        _students.add({
+          'name': row[0].trim(),
+          'guardianName': row.length > 1 ? row[1].trim() : '',
+          'guardianPhone': row.length > 2 ? row[2].trim() : '',
+          'stage': row.length > 3 ? row[3].trim() : '',
+          'teacherId': teacherMatch.isNotEmpty ? teacherMatch.first['id'].toString() : '',
+          'subCircle': row.length > 5 ? row[5].trim() : '',
+          'address': row.length > 6 ? row[6].trim() : '',
+          'notes': '',
+          'status': (row.length > 7 && row[7].trim() == 'غير نشط') ? 'inactive' : 'active',
+          '_key': _newKey(),
+        });
+        imported++;
+      }
+      if (mounted) {
+        setState(() {});
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم استيراد $imported طالب. راجع البيانات ثم اضغط "حفظ التغييرات".')),
+        );
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل الاستيراد: $e')));
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
 
   void _load() {
     final api = context.read<ApiService>();
@@ -514,8 +815,14 @@ class _StudentsTabState extends State<_StudentsTab> {
     });
   }
 
-  void _removeStudent(int index) {
-    setState(() => _students.removeAt(index));
+  void _removeStudent(String key) {
+    setState(() => _students.removeWhere((s) => s['_key'] == key));
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _save() async {
@@ -540,7 +847,6 @@ class _StudentsTabState extends State<_StudentsTab> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -563,6 +869,9 @@ class _StudentsTabState extends State<_StudentsTab> {
             );
           }
 
+          final subCircles = _students.map((s) => s['subCircle']?.toString() ?? '').where((v) => v.isNotEmpty).toSet().toList();
+          final filtered = _filteredStudents;
+
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
@@ -570,18 +879,67 @@ class _StudentsTabState extends State<_StudentsTab> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('قائمة الطلاب', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  TextButton.icon(
-                    onPressed: _addStudent,
-                    icon: const Icon(Icons.add),
-                    label: const Text('إضافة طالب'),
+                  Wrap(spacing: 4, children: [
+                    IconButton(
+                      tooltip: 'استيراد من إكسل',
+                      onPressed: _importing ? null : _importExcel,
+                      icon: _importing
+                          ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.upload_file_outlined),
+                    ),
+                    IconButton(tooltip: 'تصدير PDF', onPressed: _exportPdf, icon: const Icon(Icons.picture_as_pdf_outlined)),
+                    IconButton(tooltip: 'تصدير Excel', onPressed: _exportExcel, icon: const Icon(Icons.grid_on_outlined)),
+                    TextButton.icon(
+                      onPressed: _addStudent,
+                      icon: const Icon(Icons.add),
+                      label: const Text('إضافة طالب'),
+                    ),
+                  ]),
+                ],
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(labelText: 'بحث باسم الطالب', prefixIcon: Icon(Icons.search)),
+                onChanged: (v) => setState(() => _searchQuery = v.trim()),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  DropdownButton<String?>(
+                    value: _filterTeacherId,
+                    hint: const Text('المعلم'),
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('كل المعلمين')),
+                      ..._teachers.map((t) => DropdownMenuItem<String?>(value: t['id']?.toString(), child: Text(t['name']?.toString() ?? ''))),
+                    ],
+                    onChanged: (v) => setState(() => _filterTeacherId = v),
+                  ),
+                  DropdownButton<String?>(
+                    value: _filterSubCircle,
+                    hint: const Text('الحلقة الفرعية'),
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                      ...subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                    ],
+                    onChanged: (v) => setState(() => _filterSubCircle = v),
+                  ),
+                  DropdownButton<String?>(
+                    value: _filterStatus,
+                    hint: const Text('الحالة'),
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('الكل')),
+                      ..._statusLabels.entries.map((e) => DropdownMenuItem<String?>(value: e.key, child: Text(e.value))),
+                    ],
+                    onChanged: (v) => setState(() => _filterStatus = v),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              if (_students.isEmpty) const Text('لا يوجد طلاب بعد. أضف طالبًا للبدء.'),
-              ..._students.asMap().entries.map((entry) {
-                final i = entry.key;
-                final s = entry.value;
+              const SizedBox(height: 12),
+              if (filtered.isEmpty) const Text('لا يوجد طلاب مطابقون. أضف طالبًا أو عدّل الفلتر.'),
+              ...filtered.map((s) {
                 final currentTeacherId = (s['teacherId']?.toString().isEmpty ?? true) ? null : s['teacherId'].toString();
                 final teacherExists = currentTeacherId == null ||
                     _teachers.any((t) => t['id']?.toString() == currentTeacherId);
@@ -603,7 +961,7 @@ class _StudentsTabState extends State<_StudentsTab> {
                             ),
                             IconButton(
                               icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                              onPressed: () => _removeStudent(i),
+                              onPressed: () => _removeStudent(s['_key'].toString()),
                             ),
                           ],
                         ),
@@ -869,6 +1227,61 @@ class _IncentivesManagementTabState extends State<_IncentivesManagementTab> {
     }
   }
 
+  Future<void> _editLedgerEntry(Map<String, dynamic> entry) async {
+    final pointsCtrl = TextEditingController(text: entry['points']?.toString() ?? '0');
+    String type = entry['type']?.toString() ?? 'grant';
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setInner) => AlertDialog(
+          title: const Text('تعديل العملية'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: type,
+                decoration: const InputDecoration(labelText: 'النوع'),
+                items: const [
+                  DropdownMenuItem(value: 'grant', child: Text('منح (+)')),
+                  DropdownMenuItem(value: 'deduct', child: Text('خصم (-)')),
+                ],
+                onChanged: (v) => setInner(() => type = v ?? 'grant'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: pointsCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'عدد النقاط'),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+            ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('حفظ')),
+          ],
+        ),
+      ),
+    );
+    if (result != true) return;
+    try {
+      await context.read<ApiService>().updateIncentiveTransaction(
+            circleId: widget.circleId,
+            transactionId: entry['id'].toString(),
+            updates: {'type': type, 'points': num.tryParse(pointsCtrl.text) ?? entry['points']},
+          );
+      if (mounted) setState(_load);
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل التعديل: $e')));
+    }
+  }
+
+  List<String> _ledgerRow(Map<String, dynamic> e) => [
+        e['studentName']?.toString() ?? '',
+        e['itemName']?.toString() ?? '',
+        e['type'] == 'grant' ? 'منح' : 'خصم',
+        '${e['points'] ?? 0}',
+      ];
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -935,7 +1348,37 @@ class _IncentivesManagementTabState extends State<_IncentivesManagementTab> {
                 );
               }),
               const Divider(height: 32),
-              const Text('سجل آخر العمليات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('سجل المنح والخصم', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  Wrap(spacing: 4, children: [
+                    IconButton(
+                      tooltip: 'طباعة PDF',
+                      onPressed: _ledger.isEmpty
+                          ? null
+                          : () => printTablePdf(
+                                title: 'سجل المنح والخصم',
+                                headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
+                                rows: _ledger.map(_ledgerRow).toList(),
+                              ),
+                      icon: const Icon(Icons.picture_as_pdf_outlined),
+                    ),
+                    IconButton(
+                      tooltip: 'تصدير Excel',
+                      onPressed: _ledger.isEmpty
+                          ? null
+                          : () => exportTableExcel(
+                                sheetTitle: 'سجل التحفيز',
+                                headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
+                                rows: _ledger.map(_ledgerRow).toList(),
+                                fileName: 'سجل_التحفيز.xlsx',
+                              ),
+                      icon: const Icon(Icons.grid_on_outlined),
+                    ),
+                  ]),
+                ],
+              ),
               const SizedBox(height: 8),
               if (_ledger.isEmpty) const Text('لا توجد عمليات مسجّلة بعد.'),
               ..._ledger.take(50).map((entry) {
@@ -945,9 +1388,18 @@ class _IncentivesManagementTabState extends State<_IncentivesManagementTab> {
                     dense: true,
                     title: Text(entry['studentName']?.toString() ?? ''),
                     subtitle: Text('${entry['itemName'] ?? ''} · ${isGrant ? '+' : '-'}${entry['points']} نقطة'),
-                    trailing: IconButton(
-                      icon: const Icon(Icons.delete_outline, color: AppColors.danger),
-                      onPressed: () => _deleteLedgerEntry(entry['id'].toString()),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined),
+                          onPressed: () => _editLedgerEntry(entry),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+                          onPressed: () => _deleteLedgerEntry(entry['id'].toString()),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -1022,6 +1474,26 @@ class _ReportsTabState extends State<_ReportsTab> {
     }
   }
 
+  static const _statusLabels = {
+    'present': 'حاضر',
+    'absent': 'غائب',
+    'late': 'متأخر',
+    'excused': 'مستأذن',
+    'leave': 'إجازة',
+  };
+
+  static String _statusLabel(String? status) => _statusLabels[status] ?? 'بدون تسجيل';
+
+  static const _statusColors = {
+    'present': AppColors.primary,
+    'absent': AppColors.danger,
+    'late': AppColors.accentOrange,
+    'excused': AppColors.accentBlue,
+    'leave': Colors.purple,
+  };
+
+  static Color _statusColor(String? status) => _statusColors[status] ?? Colors.grey;
+
   @override
   Widget build(BuildContext context) {
     final presentCount = _records.where((r) => r['status'] == 'present').length;
@@ -1068,19 +1540,61 @@ class _ReportsTabState extends State<_ReportsTab> {
               Expanded(child: _ReportStatCard(label: 'غائب', value: '$absentCount', color: AppColors.danger)),
             ],
           ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _records.isEmpty
+                    ? null
+                    : () => printTablePdf(
+                          title: 'تقرير حضور الطلاب',
+                          subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
+                          headers: const ['التاريخ', 'الطالب', 'الحالة'],
+                          rows: _records
+                              .map((r) => [
+                                    r['dateKey']?.toString() ?? '',
+                                    r['studentName']?.toString() ?? '',
+                                    _statusLabel(r['status']?.toString()),
+                                  ])
+                              .toList(),
+                        ),
+                icon: const Icon(Icons.print_outlined),
+                label: const Text('طباعة'),
+              ),
+              OutlinedButton.icon(
+                onPressed: _records.isEmpty
+                    ? null
+                    : () => exportTableExcel(
+                          sheetTitle: 'تحضير الطلاب',
+                          headers: const ['التاريخ', 'الطالب', 'الحالة'],
+                          rows: _records
+                              .map((r) => [
+                                    r['dateKey']?.toString() ?? '',
+                                    r['studentName']?.toString() ?? '',
+                                    _statusLabel(r['status']?.toString()),
+                                  ])
+                              .toList(),
+                          fileName: 'تحضير_الطلاب.xlsx',
+                        ),
+                icon: const Icon(Icons.grid_on_outlined),
+                label: const Text('تصدير Excel'),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           if (_records.isEmpty) const Text('لا توجد سجلات في هذه الفترة.'),
           ..._records.map((r) {
-            final isPresent = r['status'] == 'present';
+            final status = r['status']?.toString();
+            final color = _statusColor(status);
             return Card(
               child: ListTile(
                 dense: true,
-                leading: Icon(
-                  isPresent ? Icons.check_circle : Icons.cancel,
-                  color: isPresent ? AppColors.primary : AppColors.danger,
-                ),
+                leading: CircleAvatar(backgroundColor: color, radius: 6),
                 title: Text(r['studentName']?.toString() ?? ''),
                 subtitle: Text(r['dateKey']?.toString() ?? ''),
+                trailing: Text(_statusLabel(status), style: TextStyle(color: color, fontWeight: FontWeight.bold)),
               ),
             );
           }),
@@ -1113,4 +1627,3 @@ class _ReportStatCard extends StatelessWidget {
     );
   }
 }
-
