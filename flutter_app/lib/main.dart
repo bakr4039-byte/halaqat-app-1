@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
 import 'firebase_options.dart';
@@ -15,6 +16,11 @@ import 'theme.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // بيانات اللغة (أسماء الأيام والشهور بالعربي) لازم تتحمّل قبل أي استخدام
+  // لـ DateFormat(pattern, 'ar') — من غيرها بيرمي LocaleDataException وقت
+  // الرسم (زي اللي حصل في شاشة تسجيل حضور المعلم).
+  await initializeDateFormatting('ar');
 
   // تشخيص مؤقت: في وضع release العادي، أي خطأ أثناء رسم أي عنصر بيتحوّل
   // لمربع فاضي تمامًا من غير أي رسالة — وده بالظبط اللي كان بيسبّب "الشاشة الفاضية".
