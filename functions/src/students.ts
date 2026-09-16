@@ -44,12 +44,14 @@ export const getStudentAttendanceForDate = functions.onCall(async (request) => {
   return { success: true, records: snap.docs.map((d) => ({ id: d.id, ...d.data() })) };
 });
 
-/** يقابل saveStudentAttendanceDay في Code.gs — بما فيها استدعاء إشعار أولياء الأمور بالغياب */
+/** يقابل saveStudentAttendanceDay في Code.gs — بما فيها استدعاء إشعار أولياء الأمور بالغياب
+ * الحالات المدعومة: حاضر present / غائب absent / متأخر late / مستأذن excused / إجازة leave
+ * ("بدون تسجيل" حالة ضمنية لأي طالب من غير سجل — لا تُخزَّن). */
 export const saveStudentAttendanceDay = functions.onCall(async (request) => {
   const { circleId, dateKey, records } = request.data as {
     circleId: string;
     dateKey: string;
-    records: Array<{ studentId: string; studentName: string; teacherId: string; status: "present" | "absent"; notes?: string }>;
+    records: Array<{ studentId: string; studentName: string; teacherId: string; status: string; notes?: string }>;
   };
   requireCircleAccess(request, circleId);
 
@@ -81,7 +83,7 @@ export const saveStudentAttendanceDay = functions.onCall(async (request) => {
 /** يقابل saveSingleStudentAttendance في Code.gs — تعديل حالة طالب واحد فقط */
 export const saveSingleStudentAttendance = functions.onCall(async (request) => {
   const { circleId, dateKey, studentId, studentName, teacherId, status } = request.data as {
-    circleId: string; dateKey: string; studentId: string; studentName: string; teacherId: string; status: "present" | "absent";
+    circleId: string; dateKey: string; studentId: string; studentName: string; teacherId: string; status: string;
   };
   requireCircleAccess(request, circleId);
 
