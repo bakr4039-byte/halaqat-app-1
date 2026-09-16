@@ -43,6 +43,11 @@ export interface Teacher {
   authUid?: string;
 }
 
+export interface GeoPoint {
+  lat: number;
+  lng: number;
+}
+
 export interface TeacherAttendanceRecord {
   dateKey: string;
   date: FirebaseFirestore.Timestamp;
@@ -51,7 +56,9 @@ export interface TeacherAttendanceRecord {
   teacherName: string;
   isAbsent: boolean;
   checkIn: FirebaseFirestore.Timestamp | null;
+  checkInLocation?: GeoPoint | null;
   checkOut: FirebaseFirestore.Timestamp | null;
+  checkOutLocation?: GeoPoint | null;
   delayMins: number;
   delayStatus: string;
   earlyStatus: string;
