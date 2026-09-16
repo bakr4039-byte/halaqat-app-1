@@ -1,4 +1,4 @@
-// ============================================================// ============================================================
+// ============================================================
 // أنواع البيانات المشتركة — مطابقة لـ docs/data-model.md
 // ============================================================
 
@@ -31,6 +31,21 @@ export interface Circle {
   parentWeeklySummaryEnabled?: boolean;
   parentAbsenceNotifyEnabled?: boolean;
   reportEmail?: string;
+  // نقطة الموقع الجغرافي (Geolocation & Attendance) — تحديد نطاق العمل بالمتر
+  geofenceEnabled?: boolean;
+  circleLat?: number;
+  circleLng?: number;
+  geofenceRadiusMeters?: number;
+  // تسجيل غياب تلقائي لأي معلم لم يسجل حضوره حتى ساعة محددة
+  autoAbsentEnabled?: boolean;
+  autoAbsentCutoffTime?: string; // "HH:mm" بتوقيت المدينة المحددة
+  // مزامنة تسجيل حضور اليوم مع Google Sheets (زر "حفظ تسجيل اليوم في Google Sheets")
+  googleSheetId?: string;
+  // تنسيق التقويم في جدول الحضور (هجري/ميلادي)
+  calendarType?: "hijri" | "gregorian";
+  // وقت الأذان والانصراف المستهدف (لحساب دقائق التأخير وعرض المؤشر العلوي)
+  targetCheckInTime?: string; // "HH:mm"
+  targetCheckOutTime?: string; // "HH:mm"
 }
 
 export interface Teacher {
@@ -80,13 +95,17 @@ export interface Student {
   status: "active" | "inactive";
 }
 
+// حالات تحضير الطالب: حاضر/غائب/متأخر/مستأذن/إجازة — "بدون تسجيل" حالة ضمنية
+// (تظهر لأي طالب من غير سجل لليوم، مش بتتخزن كقيمة في قاعدة البيانات)
+export type StudentAttendanceStatus = "present" | "absent" | "late" | "excused" | "leave";
+
 export interface StudentAttendanceRecord {
   dateKey: string;
   date: FirebaseFirestore.Timestamp;
   studentId: string;
   studentName: string;
   teacherId: string;
-  status: "present" | "absent";
+  status: StudentAttendanceStatus;
   notes: string;
 }
 
