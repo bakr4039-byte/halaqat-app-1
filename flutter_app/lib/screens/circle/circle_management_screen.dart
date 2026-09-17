@@ -1826,6 +1826,7 @@ class _ReportsTabState extends State<_ReportsTab> {
         ],
         const SizedBox(height: 24),
       ],
+  );
   }
 }
 
