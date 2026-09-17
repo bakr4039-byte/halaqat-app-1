@@ -48,6 +48,21 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     );
   }
 
+  Future<void> _shareLeaderboardPdfWhatsApp() async {
+    await shareTablePdfWhatsApp(
+
+      title: 'لوحة الشرف',
+      headers: const ['الترتيب', 'اسم الطالب', 'الحلقة', 'النقاط'],
+      rows: _lastLeaderboard
+          .asMap()
+          .entries
+          .map((e) => ['${e.key + 1}', e.value['studentName']?.toString() ?? '', e.value['subCircle']?.toString() ?? '', '${e.value['points'] ?? 0}'])
+          .toList(),
+      fileName: 'لوحة_الشرف.pdf',
+    
+    );
+  }
+
   Future<void> _exportLeaderboardExcel() async {
     await exportTableExcel(
       sheetTitle: 'لوحة الشرف',
@@ -228,6 +243,17 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
               icon: const Icon(Icons.grid_on_outlined, size: 18),
               label: const Text('Excel'),
             ),
+        TextButton.icon(
+          onPressed: () => shareTablePdfWhatsApp(
+
+                title: 'سجل المنح والخصم',
+                headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
+                rows: ledger.map(ledgerRow).toList(),
+              
+          ),
+          icon: const Icon(Icons.chat, size: 18, color: Colors.green),
+          label: const Text('واتساب'),
+        ),
           ],
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
         ],
@@ -274,7 +300,16 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
                               _exportLeaderboardExcel();
                             },
                           ),
-                        ]),
+                        
+              ListTile(
+                leading: const Icon(Icons.chat, color: Colors.green),
+                title: const Text('مشاركة واتساب'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _shareLeaderboardPdfWhatsApp();
+                },
+              ),
+            ]),
                       ),
                     ),
             icon: const Icon(Icons.ios_share),

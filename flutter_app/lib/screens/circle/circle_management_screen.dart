@@ -1785,6 +1785,7 @@ class _ReportsTabState extends State<_ReportsTab> {
                         ),
                 icon: const Icon(Icons.grid_on_outlined),
                 label: const Text('تصدير Excel'),
+                ),
                 OutlinedButton.icon(
                   onPressed: _records.isEmpty
                       ? null
@@ -1825,7 +1826,6 @@ class _ReportsTabState extends State<_ReportsTab> {
         ],
         const SizedBox(height: 24),
       ],
-    );
   }
 }
 
