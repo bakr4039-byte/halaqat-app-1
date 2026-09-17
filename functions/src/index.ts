@@ -3,7 +3,7 @@
 // (البديل الكامل لملف Code.gs في مشروع Google Apps Script)
 // ============================================================
 
-export { login, bootstrapSuperAdmin } from "./auth";
+export { login } from "./auth";
 
 export {
   superAdminCreateCircle,

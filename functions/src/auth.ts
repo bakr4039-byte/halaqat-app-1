@@ -86,31 +86,3 @@ export const login = functions.onCall(async (request) => {
   const { username, password } = request.data as { username: string; password: string };
   return loginWithUsernamePassword(username, password);
 });
-
-/**
- * دالة تشغَّل يدويًا مرة واحدة فقط (من Firebase Console أو الـ emulator shell)
- * لإنشاء أول حساب سوبر أدمن. بعدها لازم تتغيّر كلمة المرور من التطبيق.
- * تقابل SUPER_ADMIN_USERNAME / SUPER_ADMIN_PASSWORD المكتوبين نصيًا في Code.gs حاليًا.
- */
-export const bootstrapSuperAdmin = functions.onCall(async (request) => {
-  const { setupSecret, username, password } = request.data as {
-    setupSecret: string;
-    username: string;
-    password: string;
-  };
-  // لازم تحط قيمة سرية هنا (أو تجيبها من Secret Manager) وتتأكد إنها اتشالت
-  // بعد أول استخدام حتى محدش يقدر يستدعي الفنكشن دي تاني.
-  const REQUIRED_SETUP_SECRET = process.env.SETUP_SECRET || "CHANGE_ME_BEFORE_DEPLOY";
-  if (setupSecret !== REQUIRED_SETUP_SECRET) {
-    throw new functions.HttpsError("permission-denied", "غير مصرح.");
-  }
-  const uname = String(username || "").trim().toLowerCase();
-  const { salt, hash } = makeCredential(password);
-  await db.collection("credentials").doc(uname).set({
-    username: uname,
-    salt,
-    hash,
-    role: "superAdmin",
-  });
-  return { success: true };
-});
