@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
 import '../../utils/json_utils.dart';
+import '../../utils/export_utils.dart';
 
 /// يقابل "ج. التقارير والرسوم البيانية" في المواصفات: متابعة الحفظ
 /// والمراجعة بمؤشرات بصرية ملونة + رسوم بيانية لمقارنة الطلاب وإحصائيات
@@ -98,6 +99,37 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
         _ => field,
       };
 
+  Future<void> _printProgressChart(List<Map<String, dynamic>> students) async {
+    await printTablePdf(
+      title: 'الرسم البياني لتقدم الطلاب (الحفظ)',
+      headers: ['الطالب', 'الحفظ', 'المراجعة الصغرى', 'المراجعة الكبرى'],
+      rows: students
+          .map((e) => [
+                (e['studentName'] ?? '').toString(),
+                ((e['hifz'] ?? 0) as num).toString(),
+                ((e['minorReview'] ?? 0) as num).toString(),
+                ((e['majorReview'] ?? 0) as num).toString(),
+              ])
+          .toList(),
+    );
+  }
+
+  Future<void> _shareProgressChartWhatsApp(List<Map<String, dynamic>> students) async {
+    await shareTablePdfWhatsApp(
+      title: 'الرسم البياني لتقدم الطلاب (الحفظ)',
+      headers: ['الطالب', 'الحفظ', 'المراجعة الصغرى', 'المراجعة الكبرى'],
+      rows: students
+          .map((e) => [
+                (e['studentName'] ?? '').toString(),
+                ((e['hifz'] ?? 0) as num).toString(),
+                ((e['minorReview'] ?? 0) as num).toString(),
+                ((e['majorReview'] ?? 0) as num).toString(),
+              ])
+          .toList(),
+      fileName: 'academic_progress.pdf',
+    );
+  }
+
   /// مؤشر لوني: أخضر (أداء جيد) / برتقالي (متوسط) / أحمر (يحتاج متابعة)
   Color _indicatorColor(num value) {
     if (value >= 15) return AppColors.primary;
@@ -146,6 +178,25 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
               ],
             ),
             const SizedBox(height: 20),
+            if (chartStudents.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: () => _printProgressChart(chartStudents),
+                      icon: const Icon(Icons.print),
+                      label: const Text('طباعة الرسم البياني'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: () => _shareProgressChartWhatsApp(chartStudents),
+                      icon: const Icon(Icons.chat, color: Colors.green),
+                      label: const Text('واتساب'),
+                    ),
+                  ],
+                ),
+              ),
             if (chartStudents.isNotEmpty) ...[
               const Text('مقارنة الطلاب (الحفظ)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),

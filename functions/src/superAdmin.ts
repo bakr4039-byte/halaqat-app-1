@@ -84,6 +84,8 @@ export const superAdminGetOverview = functions.onCall(async (request) => {
         circleId: doc.id,
         username: data.ownerUsername,
         circleName: data.circleName,
+          startDate: data.startDate ?? null,
+          endDate: data.endDate ?? null,
         createdAt: data.createdAt,
         teachersCount,
         studentsCount,
@@ -146,6 +148,7 @@ export const superAdminUpdateCircle = functions.onCall(async (request) => {
     "autoWhatsapp", "prayerReminderEnabled", "reminderMinutesBefore",
     "whatsappPhoneNumberId", "teacherReminderEnabled", "teacherReminderTime",
     "parentWeeklySummaryEnabled", "parentAbsenceNotifyEnabled", "reportEmail",
+      "startDate", "endDate",
   ];
   const safeUpdates: Record<string, unknown> = {};
   for (const key of allowed) {

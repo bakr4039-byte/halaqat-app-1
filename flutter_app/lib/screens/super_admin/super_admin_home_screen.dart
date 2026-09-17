@@ -114,6 +114,151 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
     if (created == true) setState(_load);
   }
 
+  Future<void> _showEditCircleDialog(Map<String, dynamic> circle) async {
+    final nameCtrl = TextEditingController(text: (circle['circleName'] ?? '').toString());
+    DateTime? startDate = _parseDate(circle['startDate']);
+    DateTime? endDate = _parseDate(circle['endDate']);
+    String? dialogError;
+    bool submitting = false;
+
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+            builder: (context, setInner) {
+              return AlertDialog(
+                title: const Text('تعديل المجمع'),
+                content: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextFormField(
+                        controller: nameCtrl,
+                        decoration: const InputDecoration(labelText: 'اسم المجمع'),
+                      ),
+                      const SizedBox(height: 12),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(startDate == null
+                            ? 'تاريخ البداية: غير محدد'
+                            : 'تاريخ البداية: ${_fmtDate(startDate!)}'),
+                        trailing: const Icon(Icons.calendar_today),
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setInner(() => startDate = picked);
+                        },
+                      ),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(endDate == null
+                            ? 'تاريخ النهاية: غير محدد'
+                            : 'تاريخ النهاية: ${_fmtDate(endDate!)}'),
+                        trailing: const Icon(Icons.calendar_today),
+                        onTap: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? DateTime.now(),
+                            firstDate: DateTime(2020),
+                            lastDate: DateTime(2100),
+                          );
+                          if (picked != null) setInner(() => endDate = picked);
+                        },
+                      ),
+                      if (dialogError != null) ...[
+                        const SizedBox(height: 12),
+                        Text(dialogError!, style: const TextStyle(color: Colors.red)),
+                      ],
+                    ],
+                  ),
+                ),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+                  ElevatedButton(
+                    onPressed: submitting
+                        ? null
+                        : () async {
+                            setInner(() {
+                              submitting = true;
+                              dialogError = null;
+                            });
+                            try {
+                              await context.read<ApiService>().superAdminUpdateCircle(
+                                    circleId: circle['circleId'].toString(),
+                                    updates: {
+                                      'circleName': nameCtrl.text.trim(),
+                                      'startDate': startDate == null ? null : _fmtDate(startDate!),
+                                      'endDate': endDate == null ? null : _fmtDate(endDate!),
+                                    },
+                                  );
+                              if (context.mounted) Navigator.pop(context, true);
+                            } catch (e) {
+                              setInner(() {
+                                submitting = false;
+                                dialogError = 'فشل الحفظ: $e';
+                              });
+                            }
+                          },
+                    child: submitting
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text('حفظ'),
+                  ),
+                ],
+              );
+            },
+          ),
+    );
+
+    if (saved == true) setState(_load);
+  }
+
+  Future<void> _confirmDeleteCircle(Map<String, dynamic> circle) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('حذف المجمع'),
+        content:
+            Text('هل أنت متأكد من حذف "${circle['circleName']}"؟ لا يمكن التراجع عن هذا الإجراء.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('حذف'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await context.read<ApiService>().superAdminDeleteCircle(circleId: circle['circleId'].toString());
+      if (mounted) setState(_load);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('فشل الحذف: $e')));
+      }
+    }
+  }
+
+  DateTime? _parseDate(dynamic v) {
+    if (v == null) return null;
+    try {
+      return DateTime.parse(v.toString());
+    } catch (_) {
+      return null;
+    }
+  }
+
+  String _fmtDate(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -208,9 +353,25 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                                 subtitle: Text(
                                   'معلمون: ${c['teachersCount']} · طلاب: ${c['studentsCount']} · '
                                   'آخر نشاط: ${c['lastActivity'] ?? '-'} · '
-                                  'نسبة الحضور: ${c['attendanceRate'] != null ? '${c['attendanceRate']}%' : '-'}',
+                                  'نسبة الحضور: ${c['attendanceRate'] != null ? '${c['attendanceRate']}%' : '-'} · '
+                          'من ${c['startDate'] ?? '-'} إلى ${c['endDate'] ?? '-'}',
                                 ),
-                                leading: const CircleAvatar(
+                                trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 20),
+                                tooltip: 'تعديل',
+                                onPressed: () => _showEditCircleDialog(c),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+                                tooltip: 'حذف',
+                                onPressed: () => _confirmDeleteCircle(c),
+                              ),
+                            ],
+                          ),
+                          leading: const CircleAvatar(
                                   backgroundColor: AppColors.primary,
                                   child: Icon(Icons.groups, color: Colors.white),
                                 ),

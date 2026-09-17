@@ -102,6 +102,48 @@ Future<void> printTablePdf({
 }
 
 /// يبني ملف Excel (xlsx) من رؤوس وصفوف ويشاركه.
+/// مشاركة التقرير عبر واتساب فورًا (يفتح واتساب أو قائمة المشاركة مباشرة)
+Future<void> shareTablePdfWhatsApp({
+  required String title,
+  required List<String> headers,
+  required List<List<String>> rows,
+  String fileName = 'report.pdf',
+  String? subtitle,
+}) async {
+  await _ensureArabicFont();
+  final doc = pw.Document();
+  doc.addPage(
+    pw.MultiPage(
+      textDirection: pw.TextDirection.rtl,
+      theme: pw.ThemeData.withFont(base: _arabicFontCache, bold: _arabicBoldFontCache),
+      pageFormat: PdfPageFormat.a4.landscape,
+      build: (context) => [
+        pw.Center(child: pw.Text(title, style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold))),
+        if (subtitle != null) ...[
+          pw.SizedBox(height: 4),
+          pw.Center(child: pw.Text(subtitle, style: const pw.TextStyle(fontSize: 12))),
+        ],
+        pw.SizedBox(height: 16),
+        pw.TableHelper.fromTextArray(
+          headers: headers,
+          data: rows,
+          headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+          cellStyle: const pw.TextStyle(fontSize: 9),
+          cellAlignment: pw.Alignment.centerRight,
+          headerAlignment: pw.Alignment.center,
+          border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+          headerDecoration: const pw.BoxDecoration(color: PdfColors.green100),
+        ),
+      ],
+    ),
+  );
+  final bytes = await doc.save();
+  await Share.shareXFiles(
+    [XFile.fromData(bytes, name: fileName, mimeType: 'application/pdf')],
+    text: title,
+  );
+}
+
 Future<void> exportTableExcel({
   required String sheetTitle,
   required List<String> headers,

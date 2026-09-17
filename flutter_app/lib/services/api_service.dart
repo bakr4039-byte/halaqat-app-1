@@ -205,4 +205,15 @@ class ApiService {
   }) => _call('superAdminCreateCircle', {
         'circleName': circleName, 'ownerUsername': ownerUsername, 'password': password,
       });
+
+  Future<Map<String, dynamic>> superAdminUpdateCircle({
+    required String circleId,
+    required Map<String, dynamic> updates,
+  }) =>
+      _call('superAdminUpdateCircle', {'circleId': circleId, 'updates': updates});
+
+  Future<Map<String, dynamic>> superAdminDeleteCircle({
+    required String circleId,
+  }) =>
+      _call('superAdminDeleteCircle', {'circleId': circleId});
 }

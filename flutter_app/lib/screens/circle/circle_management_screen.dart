@@ -1494,10 +1494,116 @@ class _ReportsTabState extends State<_ReportsTab> {
 
   static Color _statusColor(String? status) => _statusColors[status] ?? Colors.grey;
 
+  void _showDatesDialog(
+      BuildContext context, String title, List<Map<String, dynamic>> records) {
+    final dates = records
+        .map((r) => r['dateKey']?.toString() ?? '')
+        .where((d) => d.isNotEmpty)
+        .toList()
+      ..sort();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: dates.isEmpty
+              ? const Text('لا توجد تواريخ.')
+              : ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: dates.length,
+                  itemBuilder: (context, i) => ListTile(
+                    dense: true,
+                    leading: const Icon(Icons.event, size: 18),
+                    title: Text(dates[i]),
+                  ),
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryChart(
+      int present, int absent, int late, int excused, int leave) {
+    final vals = [present, absent, late, excused, leave];
+    final labels = ['حاضر', 'غائب', 'تأخر', 'استئذان', 'اجازة'];
+    final colors = [
+      AppColors.primary,
+      AppColors.danger,
+      AppColors.accentOrange,
+      AppColors.accentBlue,
+      Colors.purple,
+    ];
+    final maxV = vals.fold<int>(0, (m, v) => v > m ? v : m).toDouble();
+    return SizedBox(
+      height: 160,
+      child: BarChart(
+        BarChartData(
+          maxY: maxV <= 0 ? 1 : maxV * 1.2,
+          barGroups: List.generate(
+              5,
+              (i) => BarChartGroupData(x: i, barRods: [
+                    BarChartRodData(
+                      toY: vals[i].toDouble(),
+                      color: colors[i],
+                      width: 22,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ])),
+          titlesData: FlTitlesData(
+            bottomTitles: AxisTitles(
+              sideTitles: SideTitles(
+                showTitles: true,
+                getTitlesWidget: (value, meta) {
+                  final i = value.toInt();
+                  if (i < 0 || i >= labels.length) return const SizedBox.shrink();
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(labels[i], style: const TextStyle(fontSize: 10)),
+                  );
+                },
+              ),
+            ),
+            leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 28)),
+            topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+            rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+         ),
+          gridData: const FlGridData(show: false),
+          borderData: FlBorderData(show: false),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final presentCount = _records.where((r) => r['status'] == 'present').length;
     final absentCount = _records.where((r) => r['status'] == 'absent').length;
+    final lateCount = _records.where((r) => r['status'] == 'late').length;
+    final excusedCount = _records.where((r) => r['status'] == 'excused').length;
+    final leaveCount = _records.where((r) => r['status'] == 'leave').length;
+    final Map<String, Map<String, List<Map<String, dynamic>>>> byStudent = {};
+    for (final r in _records) {
+      final name = (r['studentName'] ?? '').toString();
+      if (name.isEmpty) continue;
+      final status = (r['status'] ?? '').toString();
+      byStudent.putIfAbsent(
+          name,
+          () => {
+                'present': <Map<String, dynamic>>[],
+                'absent': <Map<String, dynamic>>[],
+                'late': <Map<String, dynamic>>[],
+                'excused': <Map<String, dynamic>>[],
+                'leave': <Map<String, dynamic>>[],
+              });
+      if (byStudent[name]!.containsKey(status)) {
+        byStudent[name]![status]!.add(r);
+      }
+    }
+    final studentNames = byStudent.keys.toList()..sort();
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -1533,15 +1639,113 @@ class _ReportsTabState extends State<_ReportsTab> {
         const SizedBox(height: 20),
         if (_error != null) Text(_error!, style: const TextStyle(color: Colors.red)),
         if (_searched && !_loading && _error == null) ...[
-          Row(
-            children: [
-              Expanded(child: _ReportStatCard(label: 'حاضر', value: '$presentCount', color: AppColors.primary)),
-              const SizedBox(width: 12),
-              Expanded(child: _ReportStatCard(label: 'غائب', value: '$absentCount', color: AppColors.danger)),
+            _buildSummaryChart(presentCount, absentCount, lateCount, excusedCount, leaveCount),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatChip(
+                  label: 'حاضر',
+                  count: presentCount,
+                  color: AppColors.primary,
+                  onTap: () => _showDatesDialog(context, 'أيام الحضور',
+                      _records.where((r) => r['status'] == 'present').toList()),
+                ),
+                _StatChip(
+                  label: 'غائب',
+                  count: absentCount,
+                  color: AppColors.danger,
+                  onTap: () => _showDatesDialog(context, 'أيام الغياب',
+                      _records.where((r) => r['status'] == 'absent').toList()),
+                ),
+                _StatChip(
+                  label: 'تأخر',
+                  count: lateCount,
+                  color: AppColors.accentOrange,
+                  onTap: () => _showDatesDialog(context, 'أيام التأخر',
+                      _records.where((r) => r['status'] == 'late').toList()),
+                ),
+                _StatChip(
+                  label: 'استئذان',
+                  count: excusedCount,
+                  color: AppColors.accentBlue,
+                  onTap: () => _showDatesDialog(context, 'أيام الاستئذان',
+                      _records.where((r) => r['status'] == 'excused').toList()),
+                ),
+                _StatChip(
+                  label: 'اجازة',
+                  count: leaveCount,
+                  color: Colors.purple,
+                  onTap: () => _showDatesDialog(context, 'أيام الاجازة',
+                      _records.where((r) => r['status'] == 'leave').toList()),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (studentNames.isNotEmpty) ...[
+              const Text('تفصيل الحضور لكل طالب',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              const SizedBox(height: 8),
+              ...studentNames.map((name) {
+                final counts = byStudent[name]!;
+                return Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            _StatChip(
+                              label: 'حاضر',
+                              count: counts['present']!.length,
+                              color: AppColors.primary,
+                              onTap: () => _showDatesDialog(
+                                  context, '$name - أيام الحضور', counts['present']!),
+                            ),
+                            _StatChip(
+                              label: 'غائب',
+                              count: counts['absent']!.length,
+                              color: AppColors.danger,
+                              onTap: () => _showDatesDialog(
+                                  context, '$name - أيام الغياب', counts['absent']!),
+                            ),
+                            _StatChip(
+                              label: 'تأخر',
+                              count: counts['late']!.length,
+                              color: AppColors.accentOrange,
+                              onTap: () => _showDatesDialog(
+                                  context, '$name - أيام التأخر', counts['late']!),
+                            ),
+                            _StatChip(
+                              label: 'استئذان',
+                              count: counts['excused']!.length,
+                              color: AppColors.accentBlue,
+                              onTap: () => _showDatesDialog(
+                                  context, '$name - أيام الاستئذان', counts['excused']!),
+                            ),
+                            _StatChip(
+                              label: 'اجازة',
+                              count: counts['leave']!.length,
+                              color: Colors.purple,
+                              onTap: () => _showDatesDialog(
+                                  context, '$name - أيام الاجازة', counts['leave']!),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
             ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
+            const SizedBox(height: 16),
+            Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
@@ -1580,6 +1784,25 @@ class _ReportsTabState extends State<_ReportsTab> {
                         ),
                 icon: const Icon(Icons.grid_on_outlined),
                 label: const Text('تصدير Excel'),
+                OutlinedButton.icon(
+                  onPressed: _records.isEmpty
+                      ? null
+                      : () => shareTablePdfWhatsApp(
+                            title: 'تقرير حضور الطلاب',
+                            subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
+                            headers: const ['التاريخ', 'الطالب', 'الحالة'],
+                            rows: _records
+                                .map((r) => [
+                                      r['dateKey']?.toString() ?? '',
+                                      r['studentName']?.toString() ?? '',
+                                      _statusLabel(r['status']?.toString()),
+                                    ])
+                                .toList(),
+                            fileName: 'تحضير_الطلاب.pdf',
+                          ),
+                  icon: const Icon(Icons.chat, color: Colors.green),
+                  label: const Text('واتساب'),
+                ),
               ),
             ],
           ),
@@ -1601,6 +1824,43 @@ class _ReportsTabState extends State<_ReportsTab> {
         ],
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  final VoidCallback onTap;
+  const _StatChip({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.4)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('$count',
+                style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)),
+            Text(label, style: TextStyle(color: color, fontSize: 10)),
+          ],
+        ),
+      ),
     );
   }
 }
