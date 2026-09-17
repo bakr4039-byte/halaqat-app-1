@@ -125,7 +125,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
 
         return Column(
           children: [
-            if (_subCircles.isNotEmpty)
+            if (_subCircles.isNotEmpty && widget.filterTeacherId == null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
                 child: Align(
