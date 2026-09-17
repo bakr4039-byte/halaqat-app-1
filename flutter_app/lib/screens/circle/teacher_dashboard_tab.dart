@@ -277,10 +277,26 @@ class _TeacherDashboardTabState extends State<TeacherDashboardTab> {
                     DataCell(IconButton(
                       icon: const Icon(Icons.chat, color: Colors.green),
                       tooltip: 'إرسال واتساب',
-                      onPressed: () => openWhatsApp(
-                        t['phone']?.toString() ?? '',
-                        message: 'تذكير بتسجيل الحضور اليوم في حلقة ${_settings['circleName'] ?? ''}.',
-                      ),
+                      onPressed: () async {
+                        final phone = t['phone']?.toString().trim() ?? '';
+                        if (phone.isEmpty) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('لا يوجد رقم هاتف مسجَّل للمعلم "${t['name'] ?? ''}". أضف رقم الهاتف من شاشة إدارة المعلمين أولًا.')),
+                            );
+                          }
+                          return;
+                        }
+                        final ok = await openWhatsApp(
+                          phone,
+                          message: 'تذكير بتسجيل الحضور اليوم في حلقة ${_settings['circleName'] ?? ''}.',
+                        );
+                        if (!ok && mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('تعذّر فتح واتساب. تأكد من صحة رقم الهاتف ومن تثبيت واتساب على الجهاز.')),
+                          );
+                        }
+                      },
                     )),
                   ]);
                 }).toList(),

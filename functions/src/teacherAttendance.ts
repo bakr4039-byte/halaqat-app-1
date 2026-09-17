@@ -321,6 +321,7 @@ export const getMonthlyPayroll = functions.onCall(async (request) => {
     return {
       teacherId: tDoc.id,
       teacherName: t.name || "",
+      phone: t.phone || "",
       baseSalary: salary,
       attendanceCount,
       lateCount,

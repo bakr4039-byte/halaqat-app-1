@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../theme.dart';
 import '../../utils/export_utils.dart';
 import '../../utils/json_utils.dart';
+import '../../utils/whatsapp_launcher.dart';
 
 /// يقابل "د. الإحصائيات ومسير الرواتب" و"هـ. التقارير والتصدير" في وثيقة
 /// المواصفات: نافذة إحصائيات بفلترة الفترة، جدول مسير الرواتب الشهري مع
@@ -321,9 +322,33 @@ class _PayrollExportTabState extends State<PayrollExportTab> {
                           DataCell(Text('${r['bonus'] ?? 0}')),
                           DataCell(Text('${r['net'] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold))),
                           DataCell(IconButton(
-                            icon: const Icon(Icons.notifications_outlined, size: 18),
-                            tooltip: 'إشعار المعلم',
-                            onPressed: () {},
+                            icon: const Icon(Icons.chat, color: Colors.green, size: 18),
+                            tooltip: 'إرسال مسير الراتب عبر واتساب',
+                            onPressed: () async {
+                              final phone = r['phone']?.toString().trim() ?? '';
+                              if (phone.isEmpty) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('لا يوجد رقم هاتف مسجَّل للمعلم "${r['teacherName'] ?? ''}". أضف رقم الهاتف من شاشة إدارة المعلمين أولًا.')),
+                                  );
+                                }
+                                return;
+                              }
+                              final msg = 'مسير راتب ${r['teacherName'] ?? ''} للفترة ${_fmt(_fromDate)} إلى ${_fmt(_toDate)}:\n'
+                                  'الراتب الأساسي: ${r['baseSalary'] ?? 0}\n'
+                                  'أيام الحضور: ${r['attendanceCount'] ?? 0}\n'
+                                  'أيام التأخير: ${r['lateCount'] ?? 0}\n'
+                                  'خصم الغياب: ${r['absenceDeduction'] ?? 0}\n'
+                                  'خصم التأخير: ${r['lateDeduction'] ?? 0}\n'
+                                  'المكافآت: ${r['bonus'] ?? 0}\n'
+                                  'الصافي: ${r['net'] ?? 0}';
+                              final ok = await openWhatsApp(phone, message: msg);
+                              if (!ok && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('تعذّر فتح واتساب. تأكد من صحة رقم الهاتف ومن تثبيت واتساب على الجهاز.')),
+                                );
+                              }
+                            },
                           )),
                         ]))
                     .toList(),
