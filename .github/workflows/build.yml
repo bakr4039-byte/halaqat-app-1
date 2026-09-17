@@ -1,4 +1,4 @@
-﻿name: Build Halaqat App
+name: Build Halaqat App
 
 on:
   push:
@@ -25,6 +25,15 @@ jobs:
       # لازم android/ موجود مسبقًا في المستودع (نتج عن تشغيل setup.sh محليًا
       # مرة واحدة وعمل commit له) — الـ CI هنا بيبني بس، مش بيولّد المشروع.
       - run: flutter pub get
+
+      # فحص ثابت (static analysis) بيكشف أخطاء الكود (زي أقواس ناقصة/زايدة)
+      # بسرعة قبل محاولة البناء الكاملة. مبدئيًا continue-on-error: true
+      # عشان نشوف نتيجة أول تشغيلة من غير ما نكسر الـ CI فجأة بمشاكل قديمة
+      # موجودة أصلًا في الكود؛ لما نتأكد إن التقرير نضيف، نشيل continue-on-error.
+      - name: Static analysis (flutter analyze)
+        run: flutter analyze
+        continue-on-error: true
+
       - run: flutter build apk --release
       - run: flutter build appbundle --release
 
