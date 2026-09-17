@@ -138,6 +138,8 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
   ];
 
   List<Map<String, dynamic>> _teachers = [];
+  List<String> _subCircles = [];
+  final _newSubCircleCtrl = TextEditingController();
 
   static const _prayerSlots = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
   static const _prayerSlotLabels = {
@@ -190,6 +192,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
           if (parsed != null) _themeColor = Color(0xFF000000 | parsed);
         }
         _teachers = teachers.map((t) => {...t, '_key': (t['id'] ?? _newKey()).toString()}).toList();
+        _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
         _loaded = true;
       }
       return res;
@@ -213,6 +216,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
     _circleLngCtrl.dispose();
     _geofenceRadiusCtrl.dispose();
     _googleSheetIdCtrl.dispose();
+    _newSubCircleCtrl.dispose();
     super.dispose();
   }
 
@@ -238,6 +242,19 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
     } finally {
       if (mounted) setState(() => _locatingNow = false);
     }
+  }
+
+  void _addSubCircleName() {
+    final name = _newSubCircleCtrl.text.trim();
+    if (name.isEmpty || _subCircles.contains(name)) return;
+    setState(() {
+      _subCircles.add(name);
+      _newSubCircleCtrl.clear();
+    });
+  }
+
+  void _removeSubCircleName(String name) {
+    setState(() => _subCircles.remove(name));
   }
 
   void _addTeacher() {
@@ -289,6 +306,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         'googleSheetId': _googleSheetIdCtrl.text.trim(),
         'calendarType': _calendarType,
         'themeColor': '#${_themeColor.value.toRadixString(16).substring(2)}',
+        'subCircles': _subCircles,
       };
 
       final teachersToSend = _teachers.map((t) {
@@ -538,6 +556,44 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
                 label: const Text('استخدام موقعي الحالي كموقع المجمع'),
               ),
               const Divider(height: 32),
+              const Text('الحلقات الفرعية', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              const Text(
+                'أضف أسماء الحلقات الفرعية هنا مرة واحدة، وهتظهر كقائمة اختيار عند كل معلم وطالب بدل كتابتها يدويًا في كل مرة.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _newSubCircleCtrl,
+                      decoration: const InputDecoration(labelText: 'اسم حلقة فرعية جديدة'),
+                      onSubmitted: (_) => _addSubCircleName(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    tooltip: 'إضافة حلقة',
+                    onPressed: _addSubCircleName,
+                    icon: const Icon(Icons.add_circle, color: AppColors.primary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_subCircles.isEmpty) const Text('لا توجد حلقات فرعية مضافة بعد.'),
+              if (_subCircles.isNotEmpty)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _subCircles
+                      .map((sc) => Chip(
+                            label: Text(sc),
+                            onDeleted: () => _removeSubCircleName(sc),
+                          ))
+                      .toList(),
+                ),
+              const Divider(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -619,10 +675,15 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        TextFormField(
-                          initialValue: t['subCircle']?.toString() ?? '',
+                        DropdownButtonFormField<String>(
+                          initialValue: _subCircles.contains(t['subCircle']?.toString()) ? t['subCircle']?.toString() : null,
                           decoration: const InputDecoration(labelText: 'المجموعة الفرعية (اختياري)'),
-                          onChanged: (v) => t['subCircle'] = v,
+                          isExpanded: true,
+                          items: [
+                            const DropdownMenuItem<String>(value: null, child: Text('بدون')),
+                            ..._subCircles.map((sc) => DropdownMenuItem<String>(value: sc, child: Text(sc))),
+                          ],
+                          onChanged: (v) => t['subCircle'] = v ?? '',
                         ),
                       ],
                     ),
@@ -680,6 +741,25 @@ class _StudentsTabState extends State<_StudentsTab> {
 
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _teachers = [];
+  List<String> _subCircles = [];
+
+  static const _stageOptions = [
+    'روضة',
+    'تمهيدي',
+    'أول ابتدائي',
+    'ثاني ابتدائي',
+    'ثالث ابتدائي',
+    'رابع ابتدائي',
+    'خامس ابتدائي',
+    'سادس ابتدائي',
+    'أول متوسط',
+    'ثاني متوسط',
+    'ثالث متوسط',
+    'أول ثانوي',
+    'ثاني ثانوي',
+    'ثالث ثانوي',
+    'جامعي',
+  ];
 
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -795,6 +875,8 @@ class _StudentsTabState extends State<_StudentsTab> {
           .map((s) => {...s, '_key': (s['id'] ?? _newKey()).toString()})
           .toList();
       _teachers = asMapList(initialRes['teachers']);
+      final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
+      _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
       _loaded = true;
     });
   }
@@ -1003,18 +1085,28 @@ class _StudentsTabState extends State<_StudentsTab> {
                         Row(
                           children: [
                             Expanded(
-                              child: TextFormField(
-                                initialValue: s['stage']?.toString() ?? '',
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _stageOptions.contains(s['stage']?.toString()) ? s['stage']?.toString() : null,
                                 decoration: const InputDecoration(labelText: 'المرحلة'),
-                                onChanged: (v) => s['stage'] = v,
+                                isExpanded: true,
+                                items: [
+                                  const DropdownMenuItem<String>(value: null, child: Text('اختر المرحلة')),
+                                  ..._stageOptions.map((st) => DropdownMenuItem<String>(value: st, child: Text(st))),
+                                ],
+                                onChanged: (v) => s['stage'] = v ?? '',
                               ),
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: TextFormField(
-                                initialValue: s['subCircle']?.toString() ?? '',
+                              child: DropdownButtonFormField<String>(
+                                initialValue: _subCircles.contains(s['subCircle']?.toString()) ? s['subCircle']?.toString() : null,
                                 decoration: const InputDecoration(labelText: 'الحلقة الفرعية'),
-                                onChanged: (v) => s['subCircle'] = v,
+                                isExpanded: true,
+                                items: [
+                                  const DropdownMenuItem<String>(value: null, child: Text('بدون')),
+                                  ..._subCircles.map((sc) => DropdownMenuItem<String>(value: sc, child: Text(sc))),
+                                ],
+                                onChanged: (v) => s['subCircle'] = v ?? '',
                               ),
                             ),
                           ],

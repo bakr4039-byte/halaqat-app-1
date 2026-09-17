@@ -46,6 +46,9 @@ export interface Circle {
   // وقت الأذان والانصراف المستهدف (لحساب دقائق التأخير وعرض المؤشر العلوي)
   targetCheckInTime?: string; // "HH:mm"
   targetCheckOutTime?: string; // "HH:mm"
+  // أسماء الحلقات الفرعية المضافة يدويًا من صاحب المجمع — تُستخدم كقائمة اختيار
+  // موحّدة عند كل معلم وطالب بدل الكتابة الحرة (تربط المعلم بالطلاب عبر نفس الاسم)
+  subCircles?: string[];
 }
 
 export interface Teacher {
