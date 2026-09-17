@@ -40,6 +40,8 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   late Future<List<Map<String, dynamic>>> _studentsFuture;
   final Map<String, String?> _statusByStudentId = {}; // studentId -> status | null (بدون تسجيل)
   bool _saving = false;
+  List<String> _subCircles = [];
+  String? _filterSubCircle;
 
   String get _dateKey => intl.DateFormat('yyyy-MM-dd').format(DateTime.now());
 
@@ -50,7 +52,15 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   }
 
   void _load() {
-    _studentsFuture = context.read<ApiService>().getStudents(widget.circleId).then((res) {
+    final api = context.read<ApiService>();
+    _studentsFuture = Future.wait([
+      api.getStudents(widget.circleId),
+      api.getInitialData(widget.circleId),
+    ]).then((results) {
+      final res = results[0];
+      final initialRes = results[1];
+      final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
+      _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
       var list = asMapList(res['students']);
       if (widget.filterTeacherId != null) {
         list = list.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
@@ -106,18 +116,40 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
         if (snapshot.hasError) return Center(child: Text('حدث خطأ: ${snapshot.error}'));
 
         final students = snapshot.data!;
+        final filtered = _filterSubCircle == null
+            ? students
+            : students.where((s) => (s['subCircle']?.toString() ?? '') == _filterSubCircle).toList();
         if (students.isEmpty) {
           return const Center(child: Text('لا يوجد طلاب مسجّلون بعد.'));
         }
 
         return Column(
           children: [
+            if (_subCircles.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: DropdownButton<String?>(
+                    value: _filterSubCircle,
+                    hint: const Text('فلترة بالحلقة الفرعية'),
+                    items: [
+                      const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                      ..._subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                    ],
+                    onChanged: (v) => setState(() => _filterSubCircle = v),
+                  ),
+                ),
+              ),
+            if (filtered.isEmpty)
+              const Expanded(child: Center(child: Text('لا يوجد طلاب في هذه الحلقة الفرعية.')))
+            else
             Expanded(
               child: ListView.builder(
                 padding: const EdgeInsets.all(12),
-                itemCount: students.length,
+                itemCount: filtered.length,
                 itemBuilder: (context, i) {
-                  final s = students[i];
+                  final s = filtered[i];
                   final id = s['id'] as String;
                   final status = _statusByStudentId[id];
                   return Card(
