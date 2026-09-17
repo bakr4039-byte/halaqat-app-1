@@ -42,8 +42,8 @@ class _CircleHomeScreenState extends State<CircleHomeScreen> {
         circleId: widget.circleId,
         filterTeacherId: isTeacher ? widget.teacherId : null,
       ),
-      IncentivesScreen(circleId: widget.circleId),
-      AcademicProgressScreen(circleId: widget.circleId),
+      IncentivesScreen(circleId: widget.circleId, filterTeacherId: isTeacher ? widget.teacherId : null),
+      AcademicProgressScreen(circleId: widget.circleId, filterTeacherId: isTeacher ? widget.teacherId : null),
       if (isTeacher) MyDataScreen(circleId: widget.circleId, teacherId: widget.teacherId),
     ];
 
