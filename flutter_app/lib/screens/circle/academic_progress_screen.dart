@@ -23,6 +23,8 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
   late Future<void> _loadFuture;
   List<Map<String, dynamic>> _rows = [];
   Map<String, String> _subCircleByStudentId = {};
+  List<String> _subCircles = [];
+  String? _filterSubCircle;
 
   @override
   void initState() {
@@ -35,11 +37,14 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
     _loadFuture = Future.wait([
       api.getAcademicProgressData(widget.circleId),
       api.getStudents(widget.circleId),
+      api.getInitialData(widget.circleId),
     ]).then((results) {
       final progressByStudentId = {
         for (final r in asMapList(results[0]['records'])) (r['studentId']?.toString() ?? ''): r,
       };
       final students = asMapList(results[1]['students']);
+      final settings = Map<String, dynamic>.from(results[2]['settings'] as Map? ?? {});
+      _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
       _subCircleByStudentId = {
         for (final s in students) (s['id']?.toString() ?? ''): (s['subCircle']?.toString() ?? ''),
       };
@@ -148,10 +153,14 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
         if (snapshot.hasError) return Center(child: Text('حدث خطأ: ${snapshot.error}'));
         if (_rows.isEmpty) return const Center(child: Text('لا يوجد طلاب في هذه الحلقة بعد.'));
 
-        // إحصائيات إجمالي المجمع
-        final avgHifz = _rows.map((r) => (r['hifz'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
-        final avgMinor = _rows.map((r) => (r['minorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
-        final avgMajor = _rows.map((r) => (r['majorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / _rows.length;
+        final rows = _filterSubCircle == null
+            ? _rows
+            : _rows.where((r) => (_subCircleByStudentId[r['studentId']?.toString()] ?? '') == _filterSubCircle).toList();
+
+        // إحصائيات إجمالي المجمع (أو الحلقة الفرعية المفلترة)
+        final avgHifz = rows.isEmpty ? 0.0 : rows.map((r) => (r['hifz'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / rows.length;
+        final avgMinor = rows.isEmpty ? 0.0 : rows.map((r) => (r['minorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / rows.length;
+        final avgMajor = rows.isEmpty ? 0.0 : rows.map((r) => (r['majorReview'] ?? 0) as num).fold<num>(0, (a, b) => a + b) / rows.length;
 
         // مقارنة الحلقات الفرعية (متوسط الحفظ لكل حلقة فرعية)
         final Map<String, List<num>> bySubCircle = {};
@@ -160,12 +169,25 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
           bySubCircle.putIfAbsent(sc.isEmpty ? 'غير محدد' : sc, () => []).add((r['hifz'] ?? 0) as num);
         }
 
-        final topStudents = [..._rows]..sort((a, b) => ((b['hifz'] ?? 0) as num).compareTo((a['hifz'] ?? 0) as num));
+        final topStudents = [...rows]..sort((a, b) => ((b['hifz'] ?? 0) as num).compareTo((a['hifz'] ?? 0) as num));
         final chartStudents = topStudents.take(10).toList();
 
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
+            if (_subCircles.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: DropdownButton<String?>(
+                  value: _filterSubCircle,
+                  hint: const Text('فلترة بالحلقة الفرعية'),
+                  items: [
+                    const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                    ..._subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                  ],
+                  onChanged: (v) => setState(() => _filterSubCircle = v),
+                ),
+              ),
             const Text('إحصائيات المجمع الإجمالية', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             Row(
@@ -253,7 +275,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
             ],
             const Text('متابعة الحفظ والمراجعة', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            ..._rows.map((r) {
+            ...rows.map((r) {
               final id = r['studentId'] as String;
               final name = r['studentName'] ?? '';
               return Card(
