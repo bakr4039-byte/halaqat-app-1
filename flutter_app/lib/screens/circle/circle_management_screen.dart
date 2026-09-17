@@ -1630,6 +1630,37 @@ class _ReportsTabState extends State<_ReportsTab> {
   String? _error;
   List<Map<String, dynamic>> _records = [];
   bool _searched = false;
+  List<String> _subCircles = [];
+  Map<String, String> _subCircleByStudentId = {};
+  String? _filterSubCircle;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMeta();
+  }
+
+  Future<void> _loadMeta() async {
+    try {
+      final api = context.read<ApiService>();
+      final results = await Future.wait([
+        api.getStudents(widget.circleId),
+        api.getInitialData(widget.circleId),
+      ]);
+      final students = asMapList(results[0]['students']);
+      final settings = Map<String, dynamic>.from(results[1]['settings'] as Map? ?? {});
+      if (mounted) {
+        setState(() {
+          _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
+          _subCircleByStudentId = {
+            for (final s in students) (s['id']?.toString() ?? ''): (s['subCircle']?.toString() ?? ''),
+          };
+        });
+      }
+    } catch (_) {
+      // تجاهل الخطأ؛ التقرير الأساسي يعمل حتى لو فشل تحميل بيانات الحلقات الفرعية
+    }
+  }
 
   String _fmt(DateTime d) => intl.DateFormat('yyyy-MM-dd').format(d);
 
@@ -1778,13 +1809,16 @@ class _ReportsTabState extends State<_ReportsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final presentCount = _records.where((r) => r['status'] == 'present').length;
-    final absentCount = _records.where((r) => r['status'] == 'absent').length;
-    final lateCount = _records.where((r) => r['status'] == 'late').length;
-    final excusedCount = _records.where((r) => r['status'] == 'excused').length;
-    final leaveCount = _records.where((r) => r['status'] == 'leave').length;
+    final records = _filterSubCircle == null
+        ? _records
+        : _records.where((r) => (_subCircleByStudentId[r['studentId']?.toString()] ?? '') == _filterSubCircle).toList();
+    final presentCount = records.where((r) => r['status'] == 'present').length;
+    final absentCount = records.where((r) => r['status'] == 'absent').length;
+    final lateCount = records.where((r) => r['status'] == 'late').length;
+    final excusedCount = records.where((r) => r['status'] == 'excused').length;
+    final leaveCount = records.where((r) => r['status'] == 'leave').length;
     final Map<String, Map<String, List<Map<String, dynamic>>>> byStudent = {};
-    for (final r in _records) {
+    for (final r in records) {
       final name = (r['studentName'] ?? '').toString();
       if (name.isEmpty) continue;
       final status = (r['status'] ?? '').toString();
@@ -1826,6 +1860,22 @@ class _ReportsTabState extends State<_ReportsTab> {
           ],
         ),
         const SizedBox(height: 12),
+        if (_subCircles.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: DropdownButton<String?>(
+                value: _filterSubCircle,
+                hint: const Text('فلترة بالحلقة الفرعية'),
+                items: [
+                  const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                  ..._subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                ],
+                onChanged: (v) => setState(() => _filterSubCircle = v),
+              ),
+            ),
+          ),
         ElevatedButton.icon(
           onPressed: _loading ? null : _runReport,
           icon: _loading
@@ -1848,35 +1898,35 @@ class _ReportsTabState extends State<_ReportsTab> {
                   count: presentCount,
                   color: AppColors.primary,
                   onTap: () => _showDatesDialog(context, 'أيام الحضور',
-                      _records.where((r) => r['status'] == 'present').toList()),
+                      records.where((r) => r['status'] == 'present').toList()),
                 ),
                 _StatChip(
                   label: 'غائب',
                   count: absentCount,
                   color: AppColors.danger,
                   onTap: () => _showDatesDialog(context, 'أيام الغياب',
-                      _records.where((r) => r['status'] == 'absent').toList()),
+                      records.where((r) => r['status'] == 'absent').toList()),
                 ),
                 _StatChip(
                   label: 'تأخر',
                   count: lateCount,
                   color: AppColors.accentOrange,
                   onTap: () => _showDatesDialog(context, 'أيام التأخر',
-                      _records.where((r) => r['status'] == 'late').toList()),
+                      records.where((r) => r['status'] == 'late').toList()),
                 ),
                 _StatChip(
                   label: 'استئذان',
                   count: excusedCount,
                   color: AppColors.accentBlue,
                   onTap: () => _showDatesDialog(context, 'أيام الاستئذان',
-                      _records.where((r) => r['status'] == 'excused').toList()),
+                      records.where((r) => r['status'] == 'excused').toList()),
                 ),
                 _StatChip(
                   label: 'اجازة',
                   count: leaveCount,
                   color: Colors.purple,
                   onTap: () => _showDatesDialog(context, 'أيام الاجازة',
-                      _records.where((r) => r['status'] == 'leave').toList()),
+                      records.where((r) => r['status'] == 'leave').toList()),
                 ),
               ],
             ),
@@ -1948,13 +1998,13 @@ class _ReportsTabState extends State<_ReportsTab> {
             runSpacing: 8,
             children: [
               OutlinedButton.icon(
-                onPressed: _records.isEmpty
+                onPressed: records.isEmpty
                     ? null
                     : () => printTablePdf(
                           title: 'تقرير حضور الطلاب',
                           subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
                           headers: const ['التاريخ', 'الطالب', 'الحالة'],
-                          rows: _records
+                          rows: records
                               .map((r) => [
                                     r['dateKey']?.toString() ?? '',
                                     r['studentName']?.toString() ?? '',
@@ -1966,12 +2016,12 @@ class _ReportsTabState extends State<_ReportsTab> {
                 label: const Text('طباعة'),
               ),
               OutlinedButton.icon(
-                onPressed: _records.isEmpty
+                onPressed: records.isEmpty
                     ? null
                     : () => exportTableExcel(
                           sheetTitle: 'تحضير الطلاب',
                           headers: const ['التاريخ', 'الطالب', 'الحالة'],
-                          rows: _records
+                          rows: records
                               .map((r) => [
                                     r['dateKey']?.toString() ?? '',
                                     r['studentName']?.toString() ?? '',
@@ -1984,13 +2034,13 @@ class _ReportsTabState extends State<_ReportsTab> {
                 label: const Text('تصدير Excel'),
                 ),
                 OutlinedButton.icon(
-                  onPressed: _records.isEmpty
+                  onPressed: records.isEmpty
                       ? null
                       : () => shareTablePdfWhatsApp(
                             title: 'تقرير حضور الطلاب',
                             subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
                             headers: const ['التاريخ', 'الطالب', 'الحالة'],
-                            rows: _records
+                            rows: records
                                 .map((r) => [
                                       r['dateKey']?.toString() ?? '',
                                       r['studentName']?.toString() ?? '',
@@ -2005,8 +2055,8 @@ class _ReportsTabState extends State<_ReportsTab> {
             ],
           ),
           const SizedBox(height: 16),
-          if (_records.isEmpty) const Text('لا توجد سجلات في هذه الفترة.'),
-          ..._records.map((r) {
+          if (records.isEmpty) const Text('لا توجد سجلات في هذه الفترة.'),
+          ...records.map((r) {
             final status = r['status']?.toString();
             final color = _statusColor(status);
             return Card(
