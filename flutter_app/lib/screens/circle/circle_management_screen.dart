@@ -1805,7 +1805,6 @@ class _ReportsTabState extends State<_ReportsTab> {
                   icon: const Icon(Icons.chat, color: Colors.green),
                   label: const Text('واتساب'),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 16),
