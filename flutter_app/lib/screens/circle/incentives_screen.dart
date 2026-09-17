@@ -18,6 +18,7 @@ class IncentivesScreen extends StatefulWidget {
 class _IncentivesScreenState extends State<IncentivesScreen> {
   late Future<List<Map<String, dynamic>>> _leaderboardFuture;
   List<Map<String, dynamic>> _lastLeaderboard = [];
+  List<String> _subCircles = [];
 
   @override
   void initState() {
@@ -26,7 +27,15 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
   }
 
   void _load() {
-    _leaderboardFuture = context.read<ApiService>().getLeaderboard(widget.circleId).then((res) {
+    final api = context.read<ApiService>();
+    _leaderboardFuture = Future.wait([
+      api.getLeaderboard(widget.circleId),
+      api.getInitialData(widget.circleId),
+    ]).then((results) {
+      final res = results[0];
+      final initialRes = results[1];
+      final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
+      _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
       final rows = asMapList(res['leaderboard']);
       _lastLeaderboard = rows;
       return rows;
@@ -59,7 +68,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
           .map((e) => ['${e.key + 1}', e.value['studentName']?.toString() ?? '', e.value['subCircle']?.toString() ?? '', '${e.value['points'] ?? 0}'])
           .toList(),
       fileName: 'لوحة_الشرف.pdf',
-    
+
     );
   }
 
@@ -91,36 +100,64 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
       return;
     }
 
-    String? selectedItemId = items.first['id'] as String;
+    final selectedItemIds = <String>{items.first['id'] as String};
     final selectedStudentIds = <String>{};
+    String? filterSubCircle;
 
     final applied = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
+        builder: (context, setDialogState) {
+          final filteredStudents = filterSubCircle == null
+              ? students
+              : students.where((s) => (s['subCircle']?.toString() ?? '') == filterSubCircle).toList();
+          return AlertDialog(
           title: const Text('تطبيق نقاط تحفيزية'),
           content: SizedBox(
             width: double.maxFinite,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                DropdownButtonFormField<String>(
-                  value: selectedItemId,
-                  decoration: const InputDecoration(labelText: 'البند'),
-                  items: items
-                      .map((it) => DropdownMenuItem(
-                            value: it['id'] as String,
-                            child: Text('${it['name']} (${it['type'] == 'grant' ? '+' : '-'}${it['points']})'),
-                          ))
-                      .toList(),
-                  onChanged: (v) => setDialogState(() => selectedItemId = v),
+                const Align(alignment: Alignment.centerRight, child: Text('اختر البنود (يمكن اختيار أكثر من بند):')),
+                SizedBox(
+                  height: 120,
+                  child: ListView(
+                    children: items.map((it) {
+                      final id = it['id'] as String;
+                      return CheckboxListTile(
+                        dense: true,
+                        title: Text('${it['name']} (${it['type'] == 'grant' ? '+' : '-'}${it['points']})'),
+                        value: selectedItemIds.contains(id),
+                        onChanged: (checked) => setDialogState(() {
+                          if (checked == true) {
+                            selectedItemIds.add(id);
+                          } else {
+                            selectedItemIds.remove(id);
+                          }
+                        }),
+                      );
+                    }).toList(),
+                  ),
                 ),
                 const SizedBox(height: 12),
+                if (_subCircles.isNotEmpty)
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: DropdownButton<String?>(
+                      value: filterSubCircle,
+                      hint: const Text('فلترة الطلاب بالحلقة الفرعية'),
+                      items: [
+                        const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                        ..._subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                      ],
+                      onChanged: (v) => setDialogState(() => filterSubCircle = v),
+                    ),
+                  ),
                 const Align(alignment: Alignment.centerRight, child: Text('اختر الطلاب:')),
                 SizedBox(
                   height: 250,
                   child: ListView(
-                    children: students.map((s) {
+                    children: filteredStudents.map((s) {
                       final id = s['id'] as String;
                       return CheckboxListTile(
                         title: Text(s['name'] ?? ''),
@@ -142,24 +179,27 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
           actions: [
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('إلغاء')),
             ElevatedButton(
-              onPressed: selectedStudentIds.isEmpty || selectedItemId == null
+              onPressed: selectedStudentIds.isEmpty || selectedItemIds.isEmpty
                   ? null
                   : () => Navigator.pop(context, true),
               child: const Text('تطبيق'),
             ),
           ],
-        ),
+        );
+        },
       ),
     );
 
-    if (applied == true && selectedItemId != null) {
+    if (applied == true && selectedItemIds.isNotEmpty) {
       try {
-        await api.applyIncentivePointsBulk(
-          circleId: widget.circleId,
-          itemId: selectedItemId!,
-          studentIds: selectedStudentIds.toList(),
-          appliedBy: 'app',
-        );
+        for (final itemId in selectedItemIds) {
+          await api.applyIncentivePointsBulk(
+            circleId: widget.circleId,
+            itemId: itemId,
+            studentIds: selectedStudentIds.toList(),
+            appliedBy: 'app',
+          );
+        }
         if (mounted) setState(_load);
       } catch (e) {
         if (mounted) {
@@ -187,48 +227,74 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
           '${e['points'] ?? 0}',
         ];
 
+    String? filterSubCircle;
+
     await showDialog<void>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final filteredLedger = filterSubCircle == null
+              ? ledger
+              : ledger.where((e) => (e['subCircle']?.toString() ?? '') == filterSubCircle).toList();
+          return AlertDialog(
         title: const Text('سجل المنح والخصم'),
         content: SizedBox(
           width: double.maxFinite,
           height: 400,
           child: error != null
               ? Text(error, style: const TextStyle(color: Colors.red))
-              : ledger.isEmpty
-                  ? const Center(child: Text('لا توجد عمليات مسجّلة بعد.'))
-                  : ListView.builder(
-                      itemCount: ledger.length,
-                      itemBuilder: (context, i) {
-                        final entry = ledger[i];
-                        final isGrant = entry['type'] == 'grant';
-                        return ListTile(
-                          dense: true,
-                          leading: Icon(
-                            isGrant ? Icons.add_circle_outline : Icons.remove_circle_outline,
-                            color: isGrant ? AppColors.primary : AppColors.danger,
-                          ),
-                          title: Text(entry['studentName']?.toString() ?? ''),
-                          subtitle: Text(entry['itemName']?.toString() ?? ''),
-                          trailing: Text(
-                            '${isGrant ? '+' : '-'}${entry['points']}',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              color: isGrant ? AppColors.primary : AppColors.danger,
+              : Column(
+                  children: [
+                    if (_subCircles.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: DropdownButton<String?>(
+                          value: filterSubCircle,
+                          hint: const Text('فلترة بالحلقة الفرعية'),
+                          items: [
+                            const DropdownMenuItem<String?>(value: null, child: Text('كل الحلقات')),
+                            ..._subCircles.map((sc) => DropdownMenuItem<String?>(value: sc, child: Text(sc))),
+                          ],
+                          onChanged: (v) => setDialogState(() => filterSubCircle = v),
+                        ),
+                      ),
+                    Expanded(
+                      child: filteredLedger.isEmpty
+                          ? const Center(child: Text('لا توجد عمليات مسجّلة بعد.'))
+                          : ListView.builder(
+                              itemCount: filteredLedger.length,
+                              itemBuilder: (context, i) {
+                                final entry = filteredLedger[i];
+                                final isGrant = entry['type'] == 'grant';
+                                return ListTile(
+                                  dense: true,
+                                  leading: Icon(
+                                    isGrant ? Icons.add_circle_outline : Icons.remove_circle_outline,
+                                    color: isGrant ? AppColors.primary : AppColors.danger,
+                                  ),
+                                  title: Text(entry['studentName']?.toString() ?? ''),
+                                  subtitle: Text(entry['itemName']?.toString() ?? ''),
+                                  trailing: Text(
+                                    '${isGrant ? '+' : '-'}${entry['points']}',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: isGrant ? AppColors.primary : AppColors.danger,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
-                          ),
-                        );
-                      },
                     ),
+                  ],
+                ),
         ),
         actions: [
-          if (ledger.isNotEmpty) ...[
+          if (filteredLedger.isNotEmpty) ...[
             TextButton.icon(
               onPressed: () => printTablePdf(
                 title: 'سجل المنح والخصم',
                 headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
-                rows: ledger.map(ledgerRow).toList(),
+                rows: filteredLedger.map(ledgerRow).toList(),
               ),
               icon: const Icon(Icons.print_outlined, size: 18),
               label: const Text('طباعة'),
@@ -237,7 +303,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
               onPressed: () => exportTableExcel(
                 sheetTitle: 'سجل المنح والخصم',
                 headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
-                rows: ledger.map(ledgerRow).toList(),
+                rows: filteredLedger.map(ledgerRow).toList(),
                 fileName: 'سجل_التحفيز.xlsx',
               ),
               icon: const Icon(Icons.grid_on_outlined, size: 18),
@@ -248,8 +314,8 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
 
                 title: 'سجل المنح والخصم',
                 headers: const ['الطالب', 'البند', 'النوع', 'النقاط'],
-                rows: ledger.map(ledgerRow).toList(),
-              
+                rows: filteredLedger.map(ledgerRow).toList(),
+
           ),
           icon: const Icon(Icons.chat, size: 18, color: Colors.green),
           label: const Text('واتساب'),
@@ -257,6 +323,8 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
           ],
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق')),
         ],
+      );
+        },
       ),
     );
   }
@@ -300,7 +368,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
                               _exportLeaderboardExcel();
                             },
                           ),
-                        
+
               ListTile(
                 leading: const Icon(Icons.chat, color: Colors.green),
                 title: const Text('مشاركة واتساب'),
