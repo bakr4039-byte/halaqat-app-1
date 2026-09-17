@@ -92,6 +92,30 @@ class _PayrollExportTabState extends State<PayrollExportTab> {
     }
   }
 
+  Future<void> _shareDownloadPayrollWhatsApp() async {
+    await shareTablePdfWhatsApp(
+
+        title: 'مسير الرواتب الشهري',
+        subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
+        headers: const ['المعلم', 'الراتب الأساسي', 'الحضور', 'التأخير', 'دقائق التأخير', 'خصم الغياب', 'خصم التأخير', 'المكافآت', 'الصافي'],
+        rows: _payrollRows
+            .map((r) => [
+                  r['teacherName']?.toString() ?? '',
+                  '${r['baseSalary'] ?? 0}',
+                  '${r['attendanceCount'] ?? 0}',
+                  '${r['lateCount'] ?? 0}',
+                  '${r['lateMinutesTotal'] ?? 0}',
+                  '${r['absenceDeduction'] ?? 0}',
+                  '${r['lateDeduction'] ?? 0}',
+                  '${r['bonus'] ?? 0}',
+                  '${r['net'] ?? 0}',
+                ])
+            .toList(),
+        fileName: 'مسير_الرواتب.pdf',
+      
+    );
+  }
+
   Future<void> _exportWeeklyAttendancePdf() async {
     setState(() => _exporting = true);
     try {
@@ -115,6 +139,28 @@ class _PayrollExportTabState extends State<PayrollExportTab> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+
+  Future<void> _shareWeeklyAttendanceWhatsApp() async {
+    await shareTablePdfWhatsApp(
+
+        title: 'كشف الحضور الأسبوعي',
+        subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
+        headers: const ['التاريخ', 'اليوم', 'المعلم', 'الحالة', 'وقت الحضور', 'التأخير (د)', 'وقت الانصراف'],
+        rows: _attendanceRecords
+            .map((r) => [
+                  r['dateKey']?.toString() ?? '',
+                  r['dayName']?.toString() ?? '',
+                  r['teacherName']?.toString() ?? '',
+                  r['isAbsent'] == true ? 'غائب' : 'حاضر',
+                  r['delayStatus']?.toString() ?? '',
+                  '${r['delayMins'] ?? 0}',
+                  r['earlyStatus']?.toString() ?? '',
+                ])
+            .toList(),
+        fileName: 'كشف_الحضور_الأسبوعي.pdf',
+      
+    );
   }
 
   Future<void> _exportFullLogPdf() async {
@@ -144,6 +190,30 @@ class _PayrollExportTabState extends State<PayrollExportTab> {
     }
   }
 
+  Future<void> _shareFullLogWhatsApp() async {
+    await shareTablePdfWhatsApp(
+
+        title: 'السجل الإجمالي الكامل',
+        subtitle: '${_fmt(_fromDate)} إلى ${_fmt(_toDate)}',
+        headers: const ['التاريخ', 'اليوم', 'المعلم', 'الحالة', 'وقت الحضور', 'حالة الحضور', 'التأخير (د)', 'وقت الانصراف', 'حالة الانصراف'],
+        rows: _attendanceRecords
+            .map((r) => [
+                  r['dateKey']?.toString() ?? '',
+                  r['dayName']?.toString() ?? '',
+                  r['teacherName']?.toString() ?? '',
+                  r['isAbsent'] == true ? 'غائب' : 'حاضر',
+                  r['checkIn'] != null ? 'مسجّل' : '—',
+                  r['delayStatus']?.toString() ?? '',
+                  '${r['delayMins'] ?? 0}',
+                  r['checkOut'] != null ? 'مسجّل' : '—',
+                  r['earlyStatus']?.toString() ?? '',
+                ])
+            .toList(),
+        fileName: 'السجل_الكامل.pdf',
+      
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final presentCount = _attendanceRecords.where((r) => r['isAbsent'] != true).length;
@@ -165,11 +235,17 @@ class _PayrollExportTabState extends State<PayrollExportTab> {
                 if (v == 'weekly') _exportWeeklyAttendancePdf();
                 if (v == 'payroll') _downloadPayrollPdf();
                 if (v == 'full') _exportFullLogPdf();
+            if (v == 'weekly_wa') _shareWeeklyAttendanceWhatsApp();
+            if (v == 'payroll_wa') _shareDownloadPayrollWhatsApp();
+            if (v == 'full_wa') _shareFullLogWhatsApp();
               },
               itemBuilder: (context) => const [
                 PopupMenuItem(value: 'weekly', child: Text('كشف الحضور الأسبوعي (PDF)')),
                 PopupMenuItem(value: 'payroll', child: Text('مسير الرواتب الشهري (PDF)')),
                 PopupMenuItem(value: 'full', child: Text('السجل الإجمالي الكامل (PDF)')),
+              PopupMenuItem(value: 'weekly_wa', child: Text('مشاركة حضور الأسبوعي واتساب')),
+              PopupMenuItem(value: 'payroll_wa', child: Text('مشاركة رواتب الشهري واتساب')),
+              PopupMenuItem(value: 'full_wa', child: Text('مشاركة السجل الكامل واتساب')),
               ],
             ),
           ],
