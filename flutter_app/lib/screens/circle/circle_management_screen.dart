@@ -140,6 +140,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
   List<Map<String, dynamic>> _teachers = [];
   List<String> _subCircles = [];
   final _newSubCircleCtrl = TextEditingController();
+  List<Map<String, dynamic>> _buses = [];
 
   static const _prayerSlots = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
   static const _prayerSlotLabels = {
@@ -193,6 +194,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         }
         _teachers = teachers.map((t) => {...t, '_key': (t['id'] ?? _newKey()).toString()}).toList();
         _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
+        _buses = asMapList(settings['buses']).map((b) => {...b, '_key': (b['id'] ?? _newKey()).toString()}).toList();
         _loaded = true;
       }
       return res;
@@ -257,6 +259,16 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
     setState(() => _subCircles.remove(name));
   }
 
+  void _addBus() {
+    setState(() {
+      _buses.add({'name': '', 'subscriptionAmount': 0, 'paidAmount': 0, '_key': _newKey()});
+    });
+  }
+
+  void _removeBus(int index) {
+    setState(() => _buses.removeAt(index));
+  }
+
   void _addTeacher() {
     setState(() {
       _teachers.add({
@@ -307,6 +319,11 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         'calendarType': _calendarType,
         'themeColor': '#${_themeColor.value.toRadixString(16).substring(2)}',
         'subCircles': _subCircles,
+        'buses': _buses.map((b) {
+          final m = Map<String, dynamic>.from(b);
+          m.remove('_key');
+          return m;
+        }).toList(),
       };
 
       final teachersToSend = _teachers.map((t) {
@@ -597,6 +614,80 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  const Text('الحافلات', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  TextButton.icon(
+                    onPressed: _addBus,
+                    icon: const Icon(Icons.add),
+                    label: const Text('إضافة حافلة'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'أضف بيانات كل حافلة (الاسم/الموقع، مبلغ الاشتراك، المبلغ المدفوع)، وهتظهر كقائمة اختيار عند كل طالب.',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+              const SizedBox(height: 8),
+              if (_buses.isEmpty) const Text('لا توجد حافلات مضافة بعد.'),
+              ..._buses.asMap().entries.map((entry) {
+                final i = entry.key;
+                final b = entry.value;
+                final remaining = ((b['subscriptionAmount'] as num?) ?? 0) - ((b['paidAmount'] as num?) ?? 0);
+                return Card(
+                  key: ValueKey(b['_key']),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: b['name']?.toString() ?? '',
+                                decoration: const InputDecoration(labelText: 'اسم/موقع الحافلة'),
+                                onChanged: (v) => b['name'] = v,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+                              onPressed: () => _removeBus(i),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: b['subscriptionAmount']?.toString() ?? '0',
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'مبلغ الاشتراك'),
+                                onChanged: (v) => b['subscriptionAmount'] = num.tryParse(v) ?? 0,
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: TextFormField(
+                                initialValue: b['paidAmount']?.toString() ?? '0',
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(labelText: 'المبلغ المدفوع'),
+                                onChanged: (v) => b['paidAmount'] = num.tryParse(v) ?? 0,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('المتبقي: $remaining', style: const TextStyle(fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+              const Divider(height: 32),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
                   const Text('المعلمون', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   TextButton.icon(
                     onPressed: _addTeacher,
@@ -742,6 +833,7 @@ class _StudentsTabState extends State<_StudentsTab> {
   List<Map<String, dynamic>> _students = [];
   List<Map<String, dynamic>> _teachers = [];
   List<String> _subCircles = [];
+  List<Map<String, dynamic>> _buses = [];
 
   static const _stageOptions = [
     'روضة',
@@ -877,6 +969,7 @@ class _StudentsTabState extends State<_StudentsTab> {
       _teachers = asMapList(initialRes['teachers']);
       final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
+      _buses = asMapList(settings['buses']);
       _loaded = true;
     });
   }
@@ -890,6 +983,7 @@ class _StudentsTabState extends State<_StudentsTab> {
         'stage': '',
         'teacherId': '',
         'subCircle': '',
+        'bus': '',
         'address': '',
         'notes': '',
         'status': 'active',
@@ -1110,6 +1204,17 @@ class _StudentsTabState extends State<_StudentsTab> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 8),
+                        DropdownButtonFormField<String>(
+                          initialValue: _buses.map((b) => b['name']?.toString()).contains(s['bus']?.toString()) ? s['bus']?.toString() : null,
+                          decoration: const InputDecoration(labelText: 'الحافلة'),
+                          isExpanded: true,
+                          items: [
+                            const DropdownMenuItem<String>(value: null, child: Text('بدون حافلة')),
+                            ..._buses.map((b) => DropdownMenuItem<String>(value: b['name']?.toString(), child: Text(b['name']?.toString() ?? ''))),
+                          ],
+                          onChanged: (v) => s['bus'] = v ?? '',
                         ),
                         const SizedBox(height: 8),
                         TextFormField(

@@ -49,6 +49,8 @@ export interface Circle {
   // أسماء الحلقات الفرعية المضافة يدويًا من صاحب المجمع — تُستخدم كقائمة اختيار
   // موحّدة عند كل معلم وطالب بدل الكتابة الحرة (تربط المعلم بالطلاب عبر نفس الاسم)
   subCircles?: string[];
+  // بيانات الحافلات المدرسية — كل حافلة باسمها/موقعها ومبلغ الاشتراك والمدفوع (المتبقي يُحسب في الواجهة)
+  buses?: { name?: string; subscriptionAmount?: number; paidAmount?: number }[];
 }
 
 export interface Teacher {
@@ -92,6 +94,7 @@ export interface Student {
   memorizationSurah: string;
   teacherId: string;
   subCircle: string;
+  bus?: string;
   address: string;
   joinDate: FirebaseFirestore.Timestamp | null;
   notes: string;
