@@ -82,7 +82,8 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
   late Future<List<Map<String, dynamic>>> _leaderboardFuture;
   List<Map<String, dynamic>> _lastLeaderboard = [];
   List<String> _subCircles = [];
-  Map<String, String> _teacherIdByStudentId = {};
+  List<Map<String, dynamic>> _teachers = [];
+  Set<String> _myStudentIds = {};
 
   @override
   void initState() {
@@ -101,13 +102,15 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
       final initialRes = results[1];
       final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
+      _teachers = asMapList(initialRes['teachers']);
       final students = asMapList(results[2]['students']);
-      _teacherIdByStudentId = {
-        for (final s in students) (s['id']?.toString() ?? ''): (s['teacherId']?.toString() ?? ''),
-      };
+      _myStudentIds = students
+          .where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, _teachers))
+          .map((s) => s['id']?.toString() ?? '')
+          .toSet();
       var rows = asMapList(res['leaderboard']);
       if (widget.filterTeacherId != null) {
-        rows = rows.where((r) => _teacherIdByStudentId[r['studentId']?.toString()] == widget.filterTeacherId).toList();
+        rows = rows.where((r) => _myStudentIds.contains(r['studentId']?.toString())).toList();
       }
       _lastLeaderboard = rows;
       return rows;
@@ -164,7 +167,7 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
     final items = asMapList(itemsRes['items']);
     var students = asMapList(studentsRes['students']);
     if (widget.filterTeacherId != null) {
-      students = students.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+      students = students.where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, _teachers)).toList();
     }
 
     if (!mounted) return;
@@ -291,9 +294,7 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
       final res = await context.read<ApiService>().getIncentiveLedger(widget.circleId);
       ledger = asMapList(res['ledger']);
       if (widget.filterTeacherId != null) {
-        ledger = ledger
-            .where((e) => _teacherIdByStudentId[e['studentId']?.toString()] == widget.filterTeacherId)
-            .toList();
+        ledger = ledger.where((e) => _myStudentIds.contains(e['studentId']?.toString())).toList();
       }
     } catch (e) {
       error = 'فشل تحميل السجل: $e';
