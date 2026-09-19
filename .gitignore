@@ -24,6 +24,11 @@ flutter_app/ios/Flutter/Flutter.podspec
 flutter_app/ios/Pods/
 flutter_app/**/*.iml
 
+# Release signing (never commit — generated locally / from CI secrets)
+flutter_app/android/key.properties
+flutter_app/android/app/*.jks
+flutter_app/android/app/*.keystore
+
 # Migration secrets
 migration/service-account.json
 
