@@ -909,6 +909,18 @@ class _StudentsTabState extends State<_StudentsTab> {
     await exportTableExcel(sheetTitle: 'الطلاب', headers: _exportHeaders, rows: _exportRows(_filteredStudents), fileName: 'قائمة_الطلاب.xlsx');
   }
 
+  /// تنزيل ملف إكسل فاضي بنفس رؤوس الأعمدة المتوقعة في "استيراد من إكسل"
+  /// (بدون أي صفوف بيانات) — عشان المستخدم يعبّيه بأسماء الطلاب دفعة وحدة
+  /// بدل ما يحتاج يعرف ترتيب الأعمدة بنفسه.
+  Future<void> _downloadImportTemplate() async {
+    await exportTableExcel(
+      sheetTitle: 'قالب الطلاب',
+      headers: _exportHeaders,
+      rows: const [],
+      fileName: 'نموذج_استيراد_الطلاب.xlsx',
+    );
+  }
+
   /// استيراد من إكسل — يتوقع الأعمدة بنفس ترتيب التصدير: اسم الطالب، ولي
   /// الأمر، جوال ولي الأمر، المرحلة، المعلم (بالاسم)، الحلقة، العنوان، الحالة.
   /// الصف الأول يُعتبر رؤوس أعمدة ويُتجاهل.
@@ -1057,6 +1069,11 @@ class _StudentsTabState extends State<_StudentsTab> {
                 children: [
                   const Text('قائمة الطلاب', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   Wrap(spacing: 4, children: [
+                    IconButton(
+                      tooltip: 'تنزيل نموذج الاستيراد',
+                      onPressed: _downloadImportTemplate,
+                      icon: const Icon(Icons.download_outlined),
+                    ),
                     IconButton(
                       tooltip: 'استيراد من إكسل',
                       onPressed: _importing ? null : _importExcel,
