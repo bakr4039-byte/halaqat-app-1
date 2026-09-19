@@ -27,12 +27,10 @@ jobs:
       - run: flutter pub get
 
       # فحص ثابت (static analysis) بيكشف أخطاء الكود (زي أقواس ناقصة/زايدة)
-      # بسرعة قبل محاولة البناء الكاملة. مبدئيًا continue-on-error: true
-      # عشان نشوف نتيجة أول تشغيلة من غير ما نكسر الـ CI فجأة بمشاكل قديمة
-      # موجودة أصلًا في الكود؛ لما نتأكد إن التقرير نضيف، نشيل continue-on-error.
+      # بسرعة قبل محاولة البناء الكاملة. التقرير نظيف الآن، فالفحص بيوقف
+      # الـ CI لو ظهرت أي مشكلة جديدة في الكود مستقبلًا.
       - name: Static analysis (flutter analyze)
         run: flutter analyze
-        continue-on-error: true
 
       - run: flutter build apk --release
       - run: flutter build appbundle --release
