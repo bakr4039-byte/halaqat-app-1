@@ -13,7 +13,8 @@ import '../../utils/export_utils.dart';
 /// (getAcademicProgressData + saveAcademicProgressValue في Code.gs)
 class AcademicProgressScreen extends StatefulWidget {
   final String circleId;
-  const AcademicProgressScreen({super.key, required this.circleId});
+  final String? filterTeacherId;
+  const AcademicProgressScreen({super.key, required this.circleId, this.filterTeacherId});
 
   @override
   State<AcademicProgressScreen> createState() => _AcademicProgressScreenState();
@@ -42,7 +43,10 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
       final progressByStudentId = {
         for (final r in asMapList(results[0]['records'])) (r['studentId']?.toString() ?? ''): r,
       };
-      final students = asMapList(results[1]['students']);
+      var students = asMapList(results[1]['students']);
+      if (widget.filterTeacherId != null) {
+        students = students.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+      }
       final settings = Map<String, dynamic>.from(results[2]['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
       _subCircleByStudentId = {
@@ -175,7 +179,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            if (_subCircles.isNotEmpty)
+            if (_subCircles.isNotEmpty && widget.filterTeacherId == null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: DropdownButton<String?>(
