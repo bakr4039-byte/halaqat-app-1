@@ -106,10 +106,14 @@ class _LuckyWheelTabState extends State<LuckyWheelTab> {
     setState(() => _importing = true);
     try {
       final api = context.read<ApiService>();
-      final res = await api.getStudents(widget.circleId);
-      var students = asMapList(res['students']);
+      final results = await Future.wait([
+        api.getStudents(widget.circleId),
+        api.getInitialData(widget.circleId),
+      ]);
+      var students = asMapList(results[0]['students']);
       if (widget.filterTeacherId != null) {
-        students = students.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+        final teachers = asMapList(results[1]['teachers']);
+        students = students.where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, teachers)).toList();
       }
       if (!mounted) return;
       var added = 0;
