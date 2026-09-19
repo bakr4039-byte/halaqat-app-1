@@ -44,8 +44,9 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
         for (final r in asMapList(results[0]['records'])) (r['studentId']?.toString() ?? ''): r,
       };
       var students = asMapList(results[1]['students']);
+      final teachers = asMapList(results[2]['teachers']);
       if (widget.filterTeacherId != null) {
-        students = students.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+        students = students.where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, teachers)).toList();
       }
       final settings = Map<String, dynamic>.from(results[2]['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
