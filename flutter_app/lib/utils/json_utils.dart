@@ -16,3 +16,31 @@ List<Map<String, dynamic>> asMapList(dynamic raw) {
   if (raw == null) return <Map<String, dynamic>>[];
   return (raw as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
 }
+
+/// يحدّد هل الطالب [student] "مسند" للمعلم صاحب [teacherId] أو لا.
+/// [teacherId] فاضي (null) معناها مفيش فلترة أصلًا (شاشة أدمن) فبيرجع true
+/// للكل. غير كده، الطالب يُعتبر مسند للمعلم في حالتين:
+/// 1) تخصيص مباشر: حقل teacherId على الطالب نفسه يطابق [teacherId].
+/// 2) تخصيص عبر الحلقة الفرعية: المعلم نفسه مسند لحلقة فرعية معيّنة (حقل
+///    subCircle في بيانات المعلم) وبيانات الطالب لنفس الحلقة الفرعية —
+///    ده اللي بيغطي حالة إن الأدمن ربط المعلم بحلقة فرعية كاملة بدل ما
+///    يحدد كل طالب لوحده.
+/// [teachers] هي قائمة المعلمين الخام (زي الراجعة من getInitialData).
+bool studentBelongsToTeacher(
+  Map<String, dynamic> student,
+  String? teacherId,
+  List<Map<String, dynamic>> teachers,
+) {
+  if (teacherId == null || teacherId.isEmpty) return true;
+  if (student['teacherId']?.toString() == teacherId) return true;
+
+  String? teacherSubCircle;
+  for (final t in teachers) {
+    if (t['id']?.toString() == teacherId) {
+      teacherSubCircle = t['subCircle']?.toString();
+      break;
+    }
+  }
+  if (teacherSubCircle == null || teacherSubCircle.isEmpty) return false;
+  return (student['subCircle']?.toString() ?? '') == teacherSubCircle;
+}
