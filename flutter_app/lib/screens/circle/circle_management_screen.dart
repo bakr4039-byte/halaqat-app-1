@@ -317,7 +317,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
         'geofenceRadiusMeters': int.tryParse(_geofenceRadiusCtrl.text.trim()) ?? 100,
         'googleSheetId': _googleSheetIdCtrl.text.trim(),
         'calendarType': _calendarType,
-        'themeColor': '#${_themeColor.value.toRadixString(16).substring(2)}',
+        'themeColor': '#${_themeColor.toARGB32().toRadixString(16).substring(2)}',
         'subCircles': _subCircles,
         'buses': _buses.map((b) {
           final m = Map<String, dynamic>.from(b);
@@ -502,7 +502,7 @@ class _SettingsAndTeachersTabState extends State<_SettingsAndTeachersTab> {
               Wrap(
                 spacing: 10,
                 children: _themeColorOptions.map((c) {
-                  final selected = c.value == _themeColor.value;
+                  final selected = c == _themeColor;
                   return GestureDetector(
                     onTap: () => setState(() => _themeColor = c),
                     child: CircleAvatar(
@@ -2096,9 +2096,9 @@ class _StatChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
+          color: color.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: color.withOpacity(0.4)),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -2106,29 +2106,6 @@ class _StatChip extends StatelessWidget {
             Text('$count',
                 style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)),
             Text(label, style: TextStyle(color: color, fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ReportStatCard extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-  const _ReportStatCard({required this.label, required this.value, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          children: [
-            Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
-            const SizedBox(height: 4),
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
           ],
         ),
       ),
