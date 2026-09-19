@@ -320,7 +320,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                     List<Map<String, dynamic>> circles;
                     try {
                       circles = asMapList(data['circles']);
-                    } catch (e, st) {
+                    } catch (e) {
                       return Center(
                         child: Padding(
                           padding: const EdgeInsets.all(24),
@@ -379,7 +379,7 @@ class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
                             )),
                       ],
                     );
-                  } catch (e, st) {
+                  } catch (e) {
                     return Center(
                       child: Padding(
                         padding: const EdgeInsets.all(24),
