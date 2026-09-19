@@ -5,20 +5,84 @@ import '../../services/api_service.dart';
 import '../../theme.dart';
 import '../../utils/export_utils.dart';
 import '../../utils/json_utils.dart';
+import 'lucky_wheel_tab.dart';
 
-/// يقابل لوحة الشرف ونقاط التحفيز (getLeaderboard + applyIncentivePointsBulk) في Code.gs
+/// شاشة "التحفيز" في التنقّل السفلي — مقسومة لقسمين:
+/// 1) نقاط تحفيزية: لوحة الشرف وتطبيق البنود التحفيزية (كانت هي الشاشة
+///    الوحيدة سابقًا، دلوقتي نقلناها لتاب داخلي بدون تغيير في منطقها).
+/// 2) عجلة الحظ: أداة عشوائية لاختيار طالب من قائمة أسماء يدخلها المعلم.
 class IncentivesScreen extends StatefulWidget {
   final String circleId;
-  const IncentivesScreen({super.key, required this.circleId});
+  final String? filterTeacherId;
+  const IncentivesScreen({super.key, required this.circleId, this.filterTeacherId});
 
   @override
   State<IncentivesScreen> createState() => _IncentivesScreenState();
 }
 
-class _IncentivesScreenState extends State<IncentivesScreen> {
+class _IncentivesScreenState extends State<IncentivesScreen> with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Material(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          child: TabBar(
+            controller: _tabController,
+            labelColor: AppColors.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: AppColors.primary,
+            tabs: const [
+              Tab(icon: Icon(Icons.emoji_events_outlined), text: 'نقاط تحفيزية'),
+              Tab(icon: Icon(Icons.casino_outlined), text: 'عجلة الحظ'),
+            ],
+          ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _IncentivePointsTab(circleId: widget.circleId, filterTeacherId: widget.filterTeacherId),
+              LuckyWheelTab(circleId: widget.circleId, filterTeacherId: widget.filterTeacherId),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// القسم الأول (الأصلي): لوحة الشرف + تطبيق نقاط تحفيزية + سجل المنح والخصم.
+/// يقابل getLeaderboard + applyIncentivePointsBulk في Code.gs
+class _IncentivePointsTab extends StatefulWidget {
+  final String circleId;
+  final String? filterTeacherId;
+  const _IncentivePointsTab({required this.circleId, this.filterTeacherId});
+
+  @override
+  State<_IncentivePointsTab> createState() => _IncentivePointsTabState();
+}
+
+class _IncentivePointsTabState extends State<_IncentivePointsTab> {
   late Future<List<Map<String, dynamic>>> _leaderboardFuture;
   List<Map<String, dynamic>> _lastLeaderboard = [];
   List<String> _subCircles = [];
+  Map<String, String> _teacherIdByStudentId = {};
 
   @override
   void initState() {
@@ -31,12 +95,20 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     _leaderboardFuture = Future.wait([
       api.getLeaderboard(widget.circleId),
       api.getInitialData(widget.circleId),
+      api.getStudents(widget.circleId),
     ]).then((results) {
       final res = results[0];
       final initialRes = results[1];
       final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
-      final rows = asMapList(res['leaderboard']);
+      final students = asMapList(results[2]['students']);
+      _teacherIdByStudentId = {
+        for (final s in students) (s['id']?.toString() ?? ''): (s['teacherId']?.toString() ?? ''),
+      };
+      var rows = asMapList(res['leaderboard']);
+      if (widget.filterTeacherId != null) {
+        rows = rows.where((r) => _teacherIdByStudentId[r['studentId']?.toString()] == widget.filterTeacherId).toList();
+      }
       _lastLeaderboard = rows;
       return rows;
     });
@@ -90,7 +162,10 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     final itemsRes = await api.getIncentiveItems(widget.circleId);
     final studentsRes = await api.getStudents(widget.circleId);
     final items = asMapList(itemsRes['items']);
-    final students = asMapList(studentsRes['students']);
+    var students = asMapList(studentsRes['students']);
+    if (widget.filterTeacherId != null) {
+      students = students.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+    }
 
     if (!mounted) return;
     if (items.isEmpty) {
@@ -140,7 +215,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                if (_subCircles.isNotEmpty)
+                if (_subCircles.isNotEmpty && widget.filterTeacherId == null)
                   Align(
                     alignment: Alignment.centerRight,
                     child: DropdownButton<String?>(
@@ -215,6 +290,11 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
     try {
       final res = await context.read<ApiService>().getIncentiveLedger(widget.circleId);
       ledger = asMapList(res['ledger']);
+      if (widget.filterTeacherId != null) {
+        ledger = ledger
+            .where((e) => _teacherIdByStudentId[e['studentId']?.toString()] == widget.filterTeacherId)
+            .toList();
+      }
     } catch (e) {
       error = 'فشل تحميل السجل: $e';
     }
@@ -245,7 +325,7 @@ class _IncentivesScreenState extends State<IncentivesScreen> {
               ? Text(error, style: const TextStyle(color: Colors.red))
               : Column(
                   children: [
-                    if (_subCircles.isNotEmpty)
+                    if (_subCircles.isNotEmpty && widget.filterTeacherId == null)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 8),
                         child: DropdownButton<String?>(
