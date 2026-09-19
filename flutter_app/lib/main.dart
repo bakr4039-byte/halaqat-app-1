@@ -101,7 +101,19 @@ class RootRouter extends StatelessWidget {
             final teacherId = tokenSnap.data!.claims?['teacherId'] as String?;
 
             if (role == 'superAdmin') return const SuperAdminHomeScreen();
-            if ((role == 'owner' || role == 'teacher') && circleId != null) {
+            if (role == 'owner' && circleId != null) {
+              return CircleHomeScreen(circleId: circleId, role: role!, teacherId: null);
+            }
+            if (role == 'teacher' && circleId != null) {
+              // دفاعًا عن خصوصية بيانات الطلاب: لازم يبقى فيه teacherId واضح
+              // قبل ما نفتح شاشة المعلم. من غيره، كل شاشات المعلم (فلترة
+              // الحلقة الفرعية، قائمة الطلاب، التحفيز، التقدم) بترجع تتصرف
+              // زي حساب صاحب المجمع وتعرض كل حلقات المجمع وكل الطلاب —
+              // وده تسريب خصوصية غير مقبول. أفضل نوقف الحساب بشاشة واضحة
+              // بدل ما نعرضله بيانات مش بتاعته.
+              if (teacherId == null || teacherId.isEmpty) {
+                return const _TeacherAccountSetupErrorScreen();
+              }
               return CircleHomeScreen(circleId: circleId, role: role!, teacherId: teacherId);
             }
             // دور غير معروف أو claims لسه ما وصلتش — نرجّع لشاشة الدخول
@@ -109,6 +121,54 @@ class RootRouter extends StatelessWidget {
           },
         );
       },
+    );
+  }
+}
+
+/// تظهر لو حساب المعلم مسجّل بدور 'teacher' بس من غير ربط بمعلم محدد
+/// (teacherId مفقود من الـ custom claims) — عشان منعرضلوش بيانات كل
+/// حلقات المجمع بالغلط. الحل الفعلي: صاحب المجمع يعمل للمعلم ده حساب
+/// جديد من شاشة "إدارة" (وده بيربط teacherId تلقائيًا)، أو يتواصل مع
+/// الدعم الفني لو الحساب قديم من قبل التحديث.
+class _TeacherAccountSetupErrorScreen extends StatelessWidget {
+  const _TeacherAccountSetupErrorScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, size: 56, color: AppColors.danger),
+                const SizedBox(height: 16),
+                const Text(
+                  'حساب المعلم غير مكتمل الإعداد',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'حسابك مسجّل كمعلم لكن غير مربوط بمعلم محدد داخل الحلقة، '
+                  'فمش هينفع نفتحلك بيانات الطلاب دلوقتي حفاظًا على خصوصيتهم. '
+                  'تواصل مع صاحب المجمع عشان يعيد إنشاء حسابك من شاشة "إدارة".',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  onPressed: () => context.read<AuthService>().signOut(),
+                  icon: const Icon(Icons.logout),
+                  label: const Text('تسجيل الخروج'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
