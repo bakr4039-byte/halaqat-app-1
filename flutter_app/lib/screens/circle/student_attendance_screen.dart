@@ -61,9 +61,10 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
       final initialRes = results[1];
       final settings = Map<String, dynamic>.from(initialRes['settings'] as Map? ?? {});
       _subCircles = List<String>.from((settings['subCircles'] as List?) ?? const []);
+      final teachers = asMapList(initialRes['teachers']);
       var list = asMapList(res['students']);
       if (widget.filterTeacherId != null) {
-        list = list.where((s) => s['teacherId']?.toString() == widget.filterTeacherId).toList();
+        list = list.where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, teachers)).toList();
       }
       for (final s in list) {
         _statusByStudentId[s['id']] = null;
