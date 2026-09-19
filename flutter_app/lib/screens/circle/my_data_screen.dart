@@ -41,11 +41,13 @@ class _MyDataScreenState extends State<MyDataScreen> {
       api.getStudents(widget.circleId),
       api.getStudentAttendanceForDate(widget.circleId, _todayKey),
       api.getAttendanceTrend(widget.circleId),
+      api.getInitialData(widget.circleId),
     ]).then((results) {
       final allStudents = asMapList(results[0]['students']);
+      final teachers = asMapList(results[3]['teachers']);
       _myStudents = widget.teacherId == null
           ? allStudents
-          : allStudents.where((s) => s['teacherId']?.toString() == widget.teacherId).toList();
+          : allStudents.where((s) => studentBelongsToTeacher(s, widget.teacherId, teachers)).toList();
 
       final todayRecords = asMapList(results[1]['records']);
       _todayStatusByStudentId = {
