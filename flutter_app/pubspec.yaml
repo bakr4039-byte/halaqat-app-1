@@ -55,6 +55,9 @@ dependencies:
   # مسار مجلد مؤقت لحفظ الملفات المُصدَّرة قبل مشاركتها
   path_provider: ^2.1.4
 
+  # تأثير كونفيتي عند فوز طالب في عجلة الحظ التحفيزية
+  confetti: ^0.8.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
