@@ -217,7 +217,7 @@ class _LuckyWheelTabState extends State<LuckyWheelTab> {
                 Switch(
                   value: _autoRemoveWinner,
                   onChanged: controlsEnabled ? (v) => setState(() => _autoRemoveWinner = v) : null,
-                  activeColor: AppColors.primary,
+                  activeThumbColor: AppColors.primary,
                 ),
                 const Expanded(
                   child: Text('استبعاد الفائز تلقائيًا من الجولة الجاية', style: TextStyle(fontSize: 13)),
