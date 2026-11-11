@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
@@ -36,10 +38,11 @@ const Map<String, Color> kAttendanceStatusColors = {
   'leave': Colors.purple,
 };
 
-class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
+class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> with LiveRefreshMixin<StudentAttendanceScreen> {
   late Future<List<Map<String, dynamic>>> _studentsFuture;
   final Map<String, String?> _statusByStudentId = {}; // studentId -> status | null (بدون تسجيل)
   bool _saving = false;
+  final Set<String> _dirtyStudentIds = {};
   List<String> _subCircles = [];
   String? _filterSubCircle;
 
@@ -49,6 +52,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchSchoolChanges(widget.circleId, teacherId: widget.filterTeacherId), () { if (!_saving) setState(_load); });
   }
 
   void _load() {
@@ -56,6 +60,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     _studentsFuture = Future.wait([
       api.getStudents(widget.circleId),
       api.getInitialData(widget.circleId),
+      api.getStudentAttendanceForDate(widget.circleId, _dateKey),
     ]).then((results) {
       final res = results[0];
       final initialRes = results[1];
@@ -66,8 +71,10 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
       if (widget.filterTeacherId != null) {
         list = list.where((s) => studentBelongsToTeacher(s, widget.filterTeacherId, teachers)).toList();
       }
-      for (final s in list) {
-        _statusByStudentId[s['id']] = null;
+      final savedStatuses = {for (final r in asMapList(results[2]['records'])) r['studentId'].toString(): r['status'].toString()};
+      for (final student in list) {
+        final id = student['id'].toString();
+        if (!_dirtyStudentIds.contains(id)) _statusByStudentId[id] = savedStatuses[id];
       }
       return list;
     });
@@ -77,7 +84,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     setState(() => _saving = true);
     try {
       final records = students
-          .where((s) => _statusByStudentId[s['id']] != null)
+          .where((s) => _dirtyStudentIds.contains(s['id']) && _statusByStudentId[s['id']] != null)
           .map((s) => {
                 'studentId': s['id'],
                 'studentName': s['name'],
@@ -86,6 +93,7 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
               })
           .toList();
 
+      if (records.isEmpty) return;
       await context.read<ApiService>().saveStudentAttendanceDay(
             circleId: widget.circleId,
             dateKey: _dateKey,
@@ -93,6 +101,8 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
           );
 
       if (mounted) {
+        _dirtyStudentIds.clear();
+        setState(_load);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم حفظ تحضير اليوم بنجاح.')),
         );
@@ -175,7 +185,10 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
                                 selectedColor: color,
                                 labelStyle: TextStyle(color: selected ? Colors.white : color, fontWeight: FontWeight.w600),
                                 backgroundColor: color.withValues(alpha: 0.1),
-                                onSelected: (_) => setState(() => _statusByStudentId[id] = selected ? null : e.key),
+                                onSelected: (_) => setState(() {
+                                  _statusByStudentId[id] = selected ? null : e.key;
+                                  _dirtyStudentIds.add(id);
+                                }),
                               );
                             }).toList(),
                           ),
@@ -206,3 +219,4 @@ class _StudentAttendanceScreenState extends State<StudentAttendanceScreen> {
     );
   }
 }
+

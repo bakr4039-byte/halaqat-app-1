@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:excel/excel.dart' as xls;
-import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -162,10 +160,11 @@ Future<void> exportTableExcel({
   final bytes = workbook.save();
   if (bytes == null) return;
 
-  final dir = await getTemporaryDirectory();
-  final file = File('${dir.path}/$fileName');
-  await file.writeAsBytes(Uint8List.fromList(bytes), flush: true);
-  await Share.shareXFiles([XFile(file.path)], text: sheetTitle);
+  await Share.shareXFiles(
+    [XFile.fromData(Uint8List.fromList(bytes), name: fileName,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')],
+    text: sheetTitle,
+  );
 }
 
 /// يقرأ ملف Excel (xlsx) مُختار من الجهاز ويرجّع صفوفه كنص — يُستخدم في
@@ -178,3 +177,4 @@ List<List<String>> readExcelRows(Uint8List bytes) {
     return row.map((cell) => cell?.value?.toString() ?? '').toList();
   }).toList();
 }
+

@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
@@ -19,7 +21,7 @@ class MyDataScreen extends StatefulWidget {
   State<MyDataScreen> createState() => _MyDataScreenState();
 }
 
-class _MyDataScreenState extends State<MyDataScreen> {
+class _MyDataScreenState extends State<MyDataScreen> with LiveRefreshMixin<MyDataScreen> {
   late Future<void> _loadFuture;
   bool _loaded = false;
 
@@ -33,6 +35,7 @@ class _MyDataScreenState extends State<MyDataScreen> {
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchSchoolChanges(widget.circleId, teacherId: widget.teacherId), () { setState(_load); });
   }
 
   void _load() {
@@ -198,4 +201,5 @@ class _StatTile extends StatelessWidget {
     );
   }
 }
+
 

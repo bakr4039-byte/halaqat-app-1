@@ -4,6 +4,7 @@
 // ============================================================
 
 export { login } from "./auth";
+export { syncSchoolRevision } from "./realtime";
 
 export {
   superAdminCreateCircle,
@@ -55,3 +56,4 @@ export {
   sendWeeklyParentSummaries,
   sendMonthlyReportsToComplexOwners,
 } from "./triggers";
+

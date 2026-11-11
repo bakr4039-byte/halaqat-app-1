@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v2/https";
 import { db, admin } from "./admin";
-import { requireCircleAccess, circleCol } from "./helpers";
+import { requireCircleAccess, requireManagerAccess, requireTeacherSelf, circleCol } from "./helpers";
 import { makeCredential } from "./auth";
 
 /** المسافة بالمتر بين نقطتين جغرافيتين — يقابل haversineDistanceMeters_ في Code.gs */
@@ -78,7 +78,7 @@ export const getInitialData = functions.onCall(async (request) => {
 
   if (!circleSnap.exists) throw new functions.HttpsError("not-found", "المجمع غير موجود.");
 
-  const teachers = teachersSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  const teachers = teachersSnap.docs.filter((d) => request.auth?.token.role !== "teacher" || d.id === request.auth.token.teacherId).map((d) => ({ id: d.id, ...d.data() }));
 
   return {
     success: true,
@@ -94,6 +94,7 @@ export const recordTeacherCheckIn = functions.onCall(async (request) => {
     lat?: number; lng?: number;
   };
   requireCircleAccess(request, circleId);
+  requireTeacherSelf(request, teacherId);
 
   const circleSnap = await db.collection("circles").doc(circleId).get();
   const settings = circleSnap.data() || {};
@@ -139,6 +140,7 @@ export const recordTeacherCheckOut = functions.onCall(async (request) => {
     circleId: string; teacherId: string; dateKey: string; lat?: number; lng?: number;
   };
   requireCircleAccess(request, circleId);
+  requireTeacherSelf(request, teacherId);
 
   const circleSnap = await db.collection("circles").doc(circleId).get();
   const settings = circleSnap.data() || {};
@@ -174,7 +176,7 @@ export const adminStampTeacherAttendance = functions.onCall(async (request) => {
     circleId: string; teacherId: string; teacherName: string; dateKey: string; dayName: string;
     type: "checkIn" | "checkOut";
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const circleSnap = await db.collection("circles").doc(circleId).get();
   const settings = circleSnap.data() || {};
@@ -231,7 +233,7 @@ export const setTeacherAbsentToday = functions.onCall(async (request) => {
   const { circleId, teacherId, teacherName, dateKey, dayName, isAbsent } = request.data as {
     circleId: string; teacherId: string; teacherName: string; dateKey: string; dayName: string; isAbsent: boolean;
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const col = circleCol(circleId, "teacherAttendance");
   const existing = await col.where("dateKey", "==", dateKey).where("teacherId", "==", teacherId).limit(1).get();
@@ -268,6 +270,7 @@ export const getTeacherAttendanceReport = functions.onCall(async (request) => {
   requireCircleAccess(request, circleId);
 
   let q: FirebaseFirestore.Query = circleCol(circleId, "teacherAttendance");
+  if (request.auth?.token.role === "teacher") q = q.where("teacherId", "==", request.auth.token.teacherId);
   if (fromDateKey) q = q.where("dateKey", ">=", fromDateKey);
   if (toDateKey) q = q.where("dateKey", "<=", toDateKey);
 
@@ -285,13 +288,14 @@ export const getMonthlyPayroll = functions.onCall(async (request) => {
   const { circleId, fromDateKey, toDateKey } = request.data as {
     circleId: string; fromDateKey: string; toDateKey: string;
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const [circleSnap, teachersSnap, attSnap] = await Promise.all([
     db.collection("circles").doc(circleId).get(),
     circleCol(circleId, "teachers").get(),
     (async () => {
       let q: FirebaseFirestore.Query = circleCol(circleId, "teacherAttendance");
+  if (request.auth?.token.role === "teacher") q = q.where("teacherId", "==", request.auth.token.teacherId);
       if (fromDateKey) q = q.where("dateKey", ">=", fromDateKey);
       if (toDateKey) q = q.where("dateKey", "<=", toDateKey);
       return q.get();
@@ -345,7 +349,7 @@ export const getMonthlyPayroll = functions.onCall(async (request) => {
  */
 export const saveTodayAttendanceToSheet = functions.onCall(async (request) => {
   const { circleId, dateKey } = request.data as { circleId: string; dateKey: string };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const circleSnap = await db.collection("circles").doc(circleId).get();
   const settings = circleSnap.data() || {};
@@ -414,7 +418,7 @@ export const saveTeachersAndSettings = functions.onCall(async (request) => {
     }>;
     settings: Record<string, unknown>;
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const batch = db.batch();
   const teachersCol = circleCol(circleId, "teachers");
@@ -460,7 +464,7 @@ export const saveTeachersAndSettings = functions.onCall(async (request) => {
     const credRef = db.collection("credentials").doc(cw.uname);
     const existing = await credRef.get();
     const existingCircleId = existing.exists ? (existing.data()?.circleId as string | undefined) : undefined;
-    if (existing.exists && existingCircleId && existingCircleId !== circleId) {
+    if (existing.exists && (existingCircleId !== circleId || existing.data()?.role !== "teacher" || existing.data()?.teacherId !== cw.data.teacherId)) {
       skippedUsernames.push(cw.uname);
       continue;
     }
@@ -469,3 +473,4 @@ export const saveTeachersAndSettings = functions.onCall(async (request) => {
 
   return { success: true, skippedUsernames };
 });
+

@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,7 +22,7 @@ class AcademicProgressScreen extends StatefulWidget {
   State<AcademicProgressScreen> createState() => _AcademicProgressScreenState();
 }
 
-class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
+class _AcademicProgressScreenState extends State<AcademicProgressScreen> with LiveRefreshMixin<AcademicProgressScreen> {
   late Future<void> _loadFuture;
   List<Map<String, dynamic>> _rows = [];
   Map<String, String> _subCircleByStudentId = {};
@@ -31,6 +33,7 @@ class _AcademicProgressScreenState extends State<AcademicProgressScreen> {
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchSchoolChanges(widget.circleId, teacherId: widget.filterTeacherId), () { setState(_load); });
   }
 
   void _load() {
@@ -343,3 +346,4 @@ class _AvgCard extends StatelessWidget {
     );
   }
 }
+

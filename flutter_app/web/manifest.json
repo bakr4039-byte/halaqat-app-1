@@ -1,0 +1,11 @@
+{
+  "name": "نظام إدارة الحلقات",
+  "short_name": "الحلقات",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f7f8fa",
+  "theme_color": "#1b6b43",
+  "lang": "ar",
+  "dir": "rtl",
+  "description": "إدارة المدارس القرآنية والحلقات على الويب والأندرويد"
+}

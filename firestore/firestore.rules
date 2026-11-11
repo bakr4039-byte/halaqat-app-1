@@ -1,87 +1,26 @@
 rules_version = '2';
-
-// ============================================================
-// قواعد أمان Firestore — نظام إدارة الحلقات
-//
-// الفلسفة: العملاء (تطبيق Flutter) يُسمح لهم بالقراءة المباشرة فقط
-// حسب دورهم ومجمعهم. كل عمليات الكتابة الحقيقية (حضور، نقاط تحفيزية،
-// تعديل بيانات) تمر حصريًا عبر Cloud Functions (نفس فلسفة Code.gs
-// الحالية اللي كل شيء فيها بيمر عبر دوال الباك إند)، فالعميل ممنوع من
-// الكتابة المباشرة في المجموعات الحساسة إلا في حالات محدودة موضحة تحت.
-// ============================================================
-
-function isSignedIn() {
-  return request.auth != null;
-}
-
-function role() {
-  return isSignedIn() ? request.auth.token.role : null;
-}
-
-function myCircleId() {
-  return isSignedIn() ? request.auth.token.circleId : null;
-}
-
-function isSuperAdmin() {
-  return role() == 'superAdmin';
-}
-
-function isOwnerOf(circleId) {
-  return role() == 'owner' && myCircleId() == circleId;
-}
-
-function isTeacherOf(circleId) {
-  return role() == 'teacher' && myCircleId() == circleId;
-}
-
-function belongsToCircle(circleId) {
-  return isSuperAdmin() || isOwnerOf(circleId) || isTeacherOf(circleId);
-}
-
 service cloud.firestore {
-  match /databases/{database}/documents {
-
-    match /circles/{circleId} {
-      // القراءة: سوبر أدمن يشوف الكل، صاحب/معلم المجمع يشوف مجمعه فقط
-      allow read: if belongsToCircle(circleId);
-      // الكتابة (إنشاء/تعديل/حذف مجمع): سوبر أدمن فقط، ومن خلال Cloud Function
-      // (القاعدة هنا للدفاع في العمق فقط؛ التطبيق لا يكتب هنا مباشرة)
-      allow write: if false;
-
-      match /teachers/{teacherId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false; // عبر Cloud Functions فقط
-      }
-
-      match /teacherAttendance/{recordId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-
-      match /students/{studentId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-
-      match /studentAttendance/{recordId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-
-      match /incentiveItems/{itemId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-
-      match /incentiveLedger/{entryId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-
-      match /academicProgress/{studentId} {
-        allow read: if belongsToCircle(circleId);
-        allow write: if false;
-      }
-    }
+ match /databases/{database}/documents {
+  function signedIn() { return request.auth != null; }
+  function superAdmin() { return signedIn() && request.auth.token.role == 'superAdmin'; }
+  function manager(cid) { return superAdmin() || (signedIn() && request.auth.token.role == 'owner' && request.auth.token.circleId == cid); }
+  function teacher(cid) { return signedIn() && request.auth.token.role == 'teacher' && request.auth.token.circleId == cid && request.auth.token.teacherId is string; }
+  function ownRecord(cid) { return teacher(cid) && resource.data.teacherId == request.auth.token.teacherId; }
+  match /circles/{cid} {
+   allow read: if manager(cid) || teacher(cid);
+   allow write: if false;
+   match /teachers/{tid} { allow read: if manager(cid) || (teacher(cid) && tid == request.auth.token.teacherId); allow write: if false; }
+   match /students/{sid} { allow read: if manager(cid) || ownRecord(cid); allow write: if false; }
+   match /studentAttendance/{id} { allow read: if manager(cid) || ownRecord(cid); allow write: if false; }
+   match /teacherAttendance/{id} { allow read: if manager(cid) || ownRecord(cid); allow write: if false; }
+   match /academicProgress/{id} { allow read: if manager(cid) || ownRecord(cid); allow write: if false; }
+   match /incentiveItems/{id} { allow read: if manager(cid) || teacher(cid); allow write: if false; }
+   match /incentiveLedger/{id} { allow read: if manager(cid); allow write: if false; }
   }
+  match /{path=**}/students/{id} { allow read: if superAdmin(); }
+  match /{path=**}/teachers/{id} { allow read: if superAdmin(); }
+  match /{path=**}/studentAttendance/{id} { allow read: if superAdmin(); }
+  match /{path=**} { allow write: if false; }
+ }
 }
+
