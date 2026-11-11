@@ -11,5 +11,17 @@ npm ci
 npm run build
 node --test test/shared_attendance.cjs
 cd "$repo_root"
-npx --yes firebase-tools@14 deploy --only functions,firestore --project halaqat-app-272ff
+npx --yes firebase-tools@14 deploy --only firestore --project halaqat-app-272ff
+# Deploy four functions at a time to avoid a burst of Cloud Run CPU allocations.
+mapfile -t function_names < <(GCLOUD_PROJECT=halaqat-app-272ff node -e 'const f=require("./functions/lib/index.js"); Object.keys(f).filter(k=>f[k]?.__endpoint).sort().forEach(k=>console.log(k))')
+if [ "${#function_names[@]}" -eq 0 ]; then
+  echo "No deployable functions found." >&2
+  exit 1
+fi
+for ((offset=0; offset<${#function_names[@]}; offset+=4)); do
+  selected=()
+  for name in "${function_names[@]:offset:4}"; do selected+=("functions:$name"); done
+  only_functions="$(IFS=,; echo "${selected[*]}")"
+  npx --yes firebase-tools@14 deploy --only "$only_functions" --project halaqat-app-272ff
+done
 printf '\nBackend deployment finished. Web publication still requires a successful coordinated GitHub Pages deployment.\n'

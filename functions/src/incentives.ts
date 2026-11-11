@@ -67,6 +67,11 @@ export const applyIncentivePointsBulk = functions.onCall(async (request) => {
       appliedBy: appliedBy || "",
     });
   });
+  // Publish invalidation atomically with the protected ledger writes. Teachers
+  // can watch this parent revision without reading other teachers' ledger rows.
+  batch.update(db.collection("circles").doc(circleId), {
+    lastDataChange: admin.firestore.FieldValue.serverTimestamp(),
+  });
   await batch.commit();
   return { success: true, count: (studentIds || []).length };
 });
@@ -124,7 +129,12 @@ export const updateIncentiveTransaction = functions.onCall(async (request) => {
     circleId: string; transactionId: string; updates: { points?: number; type?: "grant" | "deduct" };
   };
   requireManagerAccess(request, circleId);
-  await circleCol(circleId, "incentiveLedger").doc(transactionId).update(updates);
+  const batch = db.batch();
+  batch.update(circleCol(circleId, "incentiveLedger").doc(transactionId), updates);
+  batch.update(db.collection("circles").doc(circleId), {
+    lastDataChange: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
   return { success: true };
 });
 
@@ -132,7 +142,12 @@ export const updateIncentiveTransaction = functions.onCall(async (request) => {
 export const deleteIncentiveTransaction = functions.onCall(async (request) => {
   const { circleId, transactionId } = request.data as { circleId: string; transactionId: string };
   requireManagerAccess(request, circleId);
-  await circleCol(circleId, "incentiveLedger").doc(transactionId).delete();
+  const batch = db.batch();
+  batch.delete(circleCol(circleId, "incentiveLedger").doc(transactionId));
+  batch.update(db.collection("circles").doc(circleId), {
+    lastDataChange: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  await batch.commit();
   return { success: true };
 });
 
