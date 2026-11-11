@@ -63,7 +63,7 @@ class HalaqatApp extends StatelessWidget {
         Provider(create: (_) => ApiService()),
       ],
       child: MaterialApp(
-        title: 'نظام إدارة الحلقات',
+        title: 'إدارة الحلقات',
         debugShowCheckedModeBanner: false,
         locale: const Locale('ar'),
         theme: buildAppTheme(),

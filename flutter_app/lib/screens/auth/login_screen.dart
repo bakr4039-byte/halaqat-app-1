@@ -63,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const Icon(Icons.mosque, size: 64, color: AppColors.primary),
                     const SizedBox(height: 12),
                     const Text(
-                      'نظام إدارة الحلقات',
+                      'إدارة الحلقات',
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       textAlign: TextAlign.center,
                     ),

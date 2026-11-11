@@ -27,7 +27,11 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
-      - run: flutter build web --release
+      - run: flutter build web --release --base-href / --dart-define=FIREBASE_WEB_APP_ID=1:648760052878:web:eaf439ba2f0c8d00258ddf --dart-define=FIREBASE_WEB_API_KEY=AIzaSyAlnvYtTjMAAjaf7liAaPxCFK93URC_P8Q
+      - uses: actions/upload-artifact@v4
+        with:
+          name: original-app-web
+          path: flutter_app/build/web/
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v4
         with:
