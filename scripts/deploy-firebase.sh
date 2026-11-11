@@ -2,8 +2,8 @@
 set -euo pipefail
 repo_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
-if [ "$(node -p 'Number(process.versions.node.split(".")[0])')" -lt 20 ]; then
-  echo 'Node.js 20 or newer is required.' >&2
+if [ "$(node -p 'Number(process.versions.node.split(".")[0])')" -lt 22 ]; then
+  echo 'Node.js 22 or newer is required.' >&2
   exit 1
 fi
 cd functions

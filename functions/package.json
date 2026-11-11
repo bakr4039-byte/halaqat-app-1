@@ -2,7 +2,7 @@
   "name": "halaqat-functions",
   "description": "Cloud Functions backend لنظام إدارة الحلقات — بديل Code.gs",
   "engines": {
-    "node": "20"
+    "node": "22"
   },
   "main": "lib/index.js",
   "scripts": {
