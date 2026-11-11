@@ -1,0 +1,44 @@
+name: Publish shared Firebase web
+on:
+  push:
+    branches: [main]
+    paths: ['flutter_app/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.8'
+          channel: stable
+          cache: true
+      - name: Check and build web against the registered Firebase project
+        working-directory: flutter_app
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+          flutter build web --release --base-href /halaqat-app-1/ --dart-define=FIREBASE_WEB_APP_ID=1:648760052878:web:eaf439ba2f0c8d00258ddf --dart-define=FIREBASE_WEB_API_KEY=AIzaSyAlnvYtTjMAAjaf7liAaPxCFK93URC_P8Q
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: flutter_app/build/web
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy web
+        id: deployment
+        uses: actions/deploy-pages@v4
