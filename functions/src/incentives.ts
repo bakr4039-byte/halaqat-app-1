@@ -1,6 +1,6 @@
 import * as functions from "firebase-functions/v2/https";
 import { db, admin } from "./admin";
-import { requireCircleAccess, circleCol } from "./helpers";
+import { requireCircleAccess, requireManagerAccess, accessibleStudents, requireStudentAccess, circleCol } from "./helpers";
 
 /** يقابل getIncentiveItems في Code.gs */
 export const getIncentiveItems = functions.onCall(async (request) => {
@@ -16,7 +16,7 @@ export const saveIncentiveItem = functions.onCall(async (request) => {
     circleId: string;
     item: { id?: string; name: string; type: "grant" | "deduct"; points: number };
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
 
   const col = circleCol(circleId, "incentiveItems");
   const ref = item.id ? col.doc(item.id) : col.doc();
@@ -27,7 +27,7 @@ export const saveIncentiveItem = functions.onCall(async (request) => {
 /** يقابل deleteIncentiveItem في Code.gs */
 export const deleteIncentiveItem = functions.onCall(async (request) => {
   const { circleId, itemId } = request.data as { circleId: string; itemId: string };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
   await circleCol(circleId, "incentiveItems").doc(itemId).delete();
   return { success: true };
 });
@@ -43,6 +43,8 @@ export const applyIncentivePointsBulk = functions.onCall(async (request) => {
   if (!itemSnap.exists) throw new functions.HttpsError("not-found", "البند التحفيزي غير موجود.");
   const item = itemSnap.data()!;
 
+  if (!Array.isArray(studentIds) || studentIds.length > 400) throw new functions.HttpsError("invalid-argument", "قائمة طلاب غير صحيحة.");
+  for (const sid of studentIds) await requireStudentAccess(request, circleId, sid);
   const studentsSnap = await circleCol(circleId, "students").get();
   const studentMap: Record<string, FirebaseFirestore.DocumentData> = {};
   studentsSnap.forEach((d) => (studentMap[d.id] = d.data()));
@@ -74,7 +76,8 @@ export const getIncentiveLedger = functions.onCall(async (request) => {
   const { circleId } = request.data as { circleId: string };
   requireCircleAccess(request, circleId);
   const snap = await circleCol(circleId, "incentiveLedger").orderBy("date", "desc").get();
-  return { success: true, ledger: snap.docs.map((d) => ({ id: d.id, ...d.data() })) };
+  const ids = new Set((await accessibleStudents(request, circleId)).map((d) => d.id));
+  return { success: true, ledger: snap.docs.filter((d) => ids.has(d.data().studentId)).map((d) => ({ id: d.id, ...d.data() })) };
 });
 
 /** يقابل getLeaderboard في Code.gs — إجمالي نقاط كل طالب مرتّبة تنازليًا، مع عمود الحلقة */
@@ -83,9 +86,11 @@ export const getLeaderboard = functions.onCall(async (request) => {
   requireCircleAccess(request, circleId);
 
   const snap = await circleCol(circleId, "incentiveLedger").get();
+  const ids = new Set((await accessibleStudents(request, circleId)).map((d) => d.id));
   const totals: Record<string, { studentName: string; subCircle: string; points: number }> = {};
   snap.forEach((doc) => {
     const r = doc.data();
+    if (!ids.has(r.studentId)) return;
     if (!totals[r.studentId]) totals[r.studentId] = { studentName: r.studentName, subCircle: r.subCircle || "", points: 0 };
     totals[r.studentId].points += r.type === "deduct" ? -Number(r.points) : Number(r.points);
   });
@@ -109,7 +114,8 @@ export const getIncentiveTransactions = functions.onCall(async (request) => {
   if (toDateKey) q = q.where("date", "<=", admin.firestore.Timestamp.fromDate(new Date(toDateKey)));
 
   const snap = await q.orderBy("date", "desc").get();
-  return { success: true, transactions: snap.docs.map((d) => ({ id: d.id, ...d.data() })) };
+  const ids = new Set((await accessibleStudents(request, circleId)).map((d) => d.id));
+  return { success: true, transactions: snap.docs.filter((d) => ids.has(d.data().studentId)).map((d) => ({ id: d.id, ...d.data() })) };
 });
 
 /** يقابل updateIncentiveTransaction في Code.gs — لتصحيح عملية مسجّلة بالخطأ */
@@ -117,7 +123,7 @@ export const updateIncentiveTransaction = functions.onCall(async (request) => {
   const { circleId, transactionId, updates } = request.data as {
     circleId: string; transactionId: string; updates: { points?: number; type?: "grant" | "deduct" };
   };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
   await circleCol(circleId, "incentiveLedger").doc(transactionId).update(updates);
   return { success: true };
 });
@@ -125,7 +131,8 @@ export const updateIncentiveTransaction = functions.onCall(async (request) => {
 /** يقابل deleteIncentiveTransaction في Code.gs */
 export const deleteIncentiveTransaction = functions.onCall(async (request) => {
   const { circleId, transactionId } = request.data as { circleId: string; transactionId: string };
-  requireCircleAccess(request, circleId);
+  requireManagerAccess(request, circleId);
   await circleCol(circleId, "incentiveLedger").doc(transactionId).delete();
   return { success: true };
 });
+

@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:provider/provider.dart';
@@ -20,7 +22,7 @@ class TeacherDashboardTab extends StatefulWidget {
   State<TeacherDashboardTab> createState() => _TeacherDashboardTabState();
 }
 
-class _TeacherDashboardTabState extends State<TeacherDashboardTab> {
+class _TeacherDashboardTabState extends State<TeacherDashboardTab> with LiveRefreshMixin<TeacherDashboardTab> {
   bool _loading = true;
   String? _error;
   List<Map<String, dynamic>> _teachers = [];
@@ -39,6 +41,7 @@ class _TeacherDashboardTabState extends State<TeacherDashboardTab> {
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchSchoolChanges(widget.circleId), () { _load(); });
   }
 
   Future<void> _load() async {
@@ -348,3 +351,4 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+

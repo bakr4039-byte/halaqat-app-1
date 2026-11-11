@@ -1,10 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
-import 'firebase_options.dart';
+import 'services/firebase_bootstrap.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/circle/circle_home_screen.dart';
 import 'screens/super_admin/super_admin_home_screen.dart';
@@ -14,7 +13,15 @@ import 'theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    await initializeSharedFirebase();
+  } catch (_) {
+    runApp(const MaterialApp(home: Scaffold(body: Center(child: Padding(
+      padding: EdgeInsets.all(24),
+      child: Text('تعذر الاتصال بمشروع Firebase. تحقق من اتصالك ومن إعداد تطبيق الويب في مشروع الأندرويد نفسه.', textDirection: TextDirection.rtl),
+    )))));
+    return;
+  }
 
   // بيانات اللغة (أسماء الأيام والشهور بالعربي) لازم تتحمّل قبل أي استخدام
   // لـ DateFormat(pattern, 'ar') — من غيرها بيرمي LocaleDataException وقت
@@ -171,3 +178,4 @@ class _TeacherAccountSetupErrorScreen extends StatelessWidget {
     );
   }
 }
+

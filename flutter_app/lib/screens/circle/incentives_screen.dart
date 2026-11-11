@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -78,7 +80,7 @@ class _IncentivePointsTab extends StatefulWidget {
   State<_IncentivePointsTab> createState() => _IncentivePointsTabState();
 }
 
-class _IncentivePointsTabState extends State<_IncentivePointsTab> {
+class _IncentivePointsTabState extends State<_IncentivePointsTab> with LiveRefreshMixin<_IncentivePointsTab> {
   late Future<List<Map<String, dynamic>>> _leaderboardFuture;
   List<Map<String, dynamic>> _lastLeaderboard = [];
   List<String> _subCircles = [];
@@ -89,6 +91,7 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchSchoolChanges(widget.circleId, teacherId: widget.filterTeacherId), () { setState(_load); });
   }
 
   void _load() {
@@ -517,3 +520,4 @@ class _IncentivePointsTabState extends State<_IncentivePointsTab> {
     );
   }
 }
+

@@ -32,7 +32,8 @@ bool studentBelongsToTeacher(
   List<Map<String, dynamic>> teachers,
 ) {
   if (teacherId == null || teacherId.isEmpty) return true;
-  if (student['teacherId']?.toString() == teacherId) return true;
+  final assignedTeacherId = student['teacherId']?.toString() ?? '';
+  if (assignedTeacherId.isNotEmpty) return assignedTeacherId == teacherId;
 
   String? teacherSubCircle;
   for (final t in teachers) {
@@ -44,3 +45,4 @@ bool studentBelongsToTeacher(
   if (teacherSubCircle == null || teacherSubCircle.isEmpty) return false;
   return (student['subCircle']?.toString() ?? '') == teacherSubCircle;
 }
+

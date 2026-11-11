@@ -1,3 +1,5 @@
+import '../../services/live_updates.dart';
+import '../../services/live_refresh_mixin.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -15,13 +17,14 @@ class SuperAdminHomeScreen extends StatefulWidget {
   State<SuperAdminHomeScreen> createState() => _SuperAdminHomeScreenState();
 }
 
-class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> {
+class _SuperAdminHomeScreenState extends State<SuperAdminHomeScreen> with LiveRefreshMixin<SuperAdminHomeScreen> {
   late Future<Map<String, dynamic>> _overviewFuture;
 
   @override
   void initState() {
     super.initState();
     _load();
+    listenForLiveUpdates(watchOwnerChanges(), () { setState(_load); });
   }
 
   void _load() {
@@ -425,3 +428,4 @@ class _StatCard extends StatelessWidget {
     );
   }
 }
+
