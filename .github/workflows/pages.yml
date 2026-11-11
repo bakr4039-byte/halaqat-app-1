@@ -10,8 +10,44 @@ permissions:
   id-token: write
 concurrency:
   group: github-pages
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
+  firebase:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: functions/package-lock.json
+      - name: Require an existing Firebase deployment credential
+        env:
+          FIREBASE_DEPLOY_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HALAQAT_APP_272FF || secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$FIREBASE_DEPLOY_TOKEN" ] && [ -z "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::Firebase deployment access is missing. Configure FIREBASE_TOKEN or FIREBASE_SERVICE_ACCOUNT_HALAQAT_APP_272FF before publishing the new web client."
+            exit 1
+          fi
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]; then
+            umask 077
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$RUNNER_TEMP/firebase-service-account.json"
+            echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-service-account.json" >> "$GITHUB_ENV"
+          fi
+      - run: npm ci
+        working-directory: functions
+      - run: npm run build
+        working-directory: functions
+      - run: node --test test/shared_attendance.cjs
+        working-directory: functions
+      - name: Deploy compatible Firebase backend before the web client
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: npx --yes firebase-tools@14 deploy --only functions,firestore --project halaqat-app-272ff --non-interactive
+      - name: Remove temporary credentials
+        if: always()
+        run: rm -f "$RUNNER_TEMP/firebase-service-account.json"
   build:
     runs-on: ubuntu-latest
     steps:
@@ -37,7 +73,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: [build, firebase]
     steps:
       - name: Deploy web
         id: deployment
